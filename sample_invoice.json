@@ -1,0 +1,36 @@
+{
+  "invoice_number": "INV-2025-001",
+  "issue_date": "2025-11-29",
+  "currency": "EUR",
+  "seller": {
+    "name": "ACME Consulting",
+    "vat": "BE0123456789",
+    "address": {
+      "street": "Main Street",
+      "city": "Brussels",
+      "postal": "1000",
+      "country": "BE"
+    }
+  },
+  "buyer": {
+    "name": "Client Corp",
+    "vat": "NL987654321",
+    "participant_id": "9908:nl987654321",
+    "address": {
+      "street": "Client Ave",
+      "city": "Amsterdam",
+      "postal": "1011",
+      "country": "NL"
+    }
+  },
+  "lines": [
+    {
+      "id": "1",
+      "description": "Consulting service",
+      "quantity": 1,
+      "unit": "EA",
+      "unit_price": 1000.00,
+      "tax_percent": 21.0
+    }
+  ]
+}
