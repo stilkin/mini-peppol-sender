@@ -7,8 +7,10 @@ A minimal Python CLI for generating UBL 2.1 invoices, validating them, and sendi
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env   # then fill in your credentials (see below)
+pip install -r requirements.txt       # runtime only
+# or
+pip install -r requirements-dev.txt   # includes linting, typing, pre-commit
+cp .env.example .env                  # then fill in your credentials (see below)
 ```
 
 ## Configuration
