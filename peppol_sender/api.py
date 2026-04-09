@@ -11,6 +11,16 @@ from typing import Any
 import requests
 
 
+def _parse_response(resp: requests.Response) -> dict[str, Any]:
+    """Extract status code and parsed JSON (or error text) from a response."""
+    result: dict[str, Any] = {"status_code": resp.status_code}
+    try:
+        result["json"] = resp.json()
+    except ValueError:
+        result["json"] = {"error_text": resp.text}
+    return result
+
+
 def package_message(
     xml_bytes: bytes,
     sender: str,
@@ -39,23 +49,14 @@ def send_message(
     api_key: str,
     base_url: str = "https://api.test.peppyrus.be/v1",
 ) -> dict[str, Any]:
-    """POST MessageBody to Peppyrus and return parsed JSON response.
-
-    Returns a dict with keys: status_code, json (parsed body or error message)
-    """
+    """POST MessageBody to Peppyrus and return parsed JSON response."""
     url = base_url.rstrip("/") + "/message"
     headers = {
         "Content-Type": "application/json",
         "X-Api-Key": api_key,
     }
     resp = requests.post(url, json=message_body, headers=headers, timeout=30)
-
-    result: dict[str, Any] = {"status_code": resp.status_code}
-    try:
-        result["json"] = resp.json()
-    except ValueError:
-        result["json"] = {"error_text": resp.text}
-    return result
+    return _parse_response(resp)
 
 
 def get_report(message_id: str, api_key: str, base_url: str = "https://api.test.peppyrus.be/v1") -> dict[str, Any]:
@@ -63,9 +64,4 @@ def get_report(message_id: str, api_key: str, base_url: str = "https://api.test.
     url = base_url.rstrip("/") + f"/message/{message_id}/report"
     headers = {"X-Api-Key": api_key}
     resp = requests.get(url, headers=headers, timeout=30)
-    result: dict[str, Any] = {"status_code": resp.status_code}
-    try:
-        result["json"] = resp.json()
-    except ValueError:
-        result["json"] = {"error_text": resp.text}
-    return result
+    return _parse_response(resp)

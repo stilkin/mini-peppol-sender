@@ -11,13 +11,20 @@ business rules; use the validator module to run additional checks.
 from xml.dom import minidom
 from xml.etree import ElementTree as ET
 
-NS = {
-    "ubl": "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2",
-}
+_UBL_NS = "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
 
 
 def _ns(tag: str) -> str:
-    return f"{{{NS['ubl']}}}{tag}"
+    return f"{{{_UBL_NS}}}{tag}"
+
+
+def _add_party(parent: ET.Element, wrapper_tag: str, name: str) -> None:
+    """Add an AccountingSupplierParty/AccountingCustomerParty subtree."""
+    wrapper = ET.SubElement(parent, _ns(wrapper_tag))
+    party = ET.SubElement(wrapper, _ns("Party"))
+    party_name = ET.SubElement(party, _ns("PartyName"))
+    name_el = ET.SubElement(party_name, _ns("Name"))
+    name_el.text = name
 
 
 def generate_ubl(invoice: dict) -> bytes:
@@ -26,30 +33,18 @@ def generate_ubl(invoice: dict) -> bytes:
     invoice: dict with keys: invoice_number, issue_date, currency, seller, buyer, lines
     Returns: bytes (UTF-8)
     """
-    ET.register_namespace("", NS["ubl"])
+    ET.register_namespace("", _UBL_NS)
 
     inv = ET.Element(_ns("Invoice"))
 
-    # Basic header
     id_el = ET.SubElement(inv, _ns("ID"))
     id_el.text = str(invoice.get("invoice_number", "INV-0001"))
 
     issue = ET.SubElement(inv, _ns("IssueDate"))
     issue.text = invoice.get("issue_date", "")
 
-    # Accounting supplier party (seller)
-    supplier = ET.SubElement(inv, _ns("AccountingSupplierParty"))
-    party_s = ET.SubElement(supplier, _ns("Party"))
-    name_s = ET.SubElement(party_s, _ns("PartyName"))
-    n_s = ET.SubElement(name_s, _ns("Name"))
-    n_s.text = invoice.get("seller", {}).get("name", "Seller")
-
-    # Accounting customer party (buyer)
-    customer = ET.SubElement(inv, _ns("AccountingCustomerParty"))
-    party_c = ET.SubElement(customer, _ns("Party"))
-    name_c = ET.SubElement(party_c, _ns("PartyName"))
-    n_c = ET.SubElement(name_c, _ns("Name"))
-    n_c.text = invoice.get("buyer", {}).get("name", "Buyer")
+    _add_party(inv, "AccountingSupplierParty", invoice.get("seller", {}).get("name", "Seller"))
+    _add_party(inv, "AccountingCustomerParty", invoice.get("buyer", {}).get("name", "Buyer"))
 
     # Invoice lines
     lines = invoice.get("lines", [])
