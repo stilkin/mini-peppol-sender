@@ -33,11 +33,14 @@ ruff format .         # format
 # Type checking
 mypy .
 
+# Tests
+pytest                    # run all tests
+pytest -k test_name       # run a single test by name
+pytest tests/test_ubl.py  # run a single test file
+
 # Pre-commit hooks (ruff + mypy, installed via `pre-commit install`)
 pre-commit run --all-files
 ```
-
-No test framework is configured yet.
 
 ## Architecture
 
