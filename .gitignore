@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+
+# Environment
+.env
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# OpenSpec
+openspec/changes/*/design.md
+openspec/changes/*/tasks.md
+
+# Generated files
+*.xml
