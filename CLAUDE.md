@@ -50,13 +50,15 @@ pre-commit run --all-files
 The project follows a functional pipeline: **JSON → UBL XML → Validation → API transmission**.
 
 - **`cli.py`** — CLI entry point with subcommands: `create`, `validate`, `send`, `report`
-- **`peppol_sender/ubl.py`** — `generate_ubl(invoice: dict) -> bytes` builds minimal UBL 2.1 XML using `xml.etree.ElementTree`
-- **`peppol_sender/validator.py`** — `validate_basic(xml_bytes: bytes) -> List[Dict]` checks required element presence (not full XSD/Schematron)
+- **`peppol_sender/ubl.py`** — `generate_ubl(invoice: dict) -> bytes` builds EN-16931 compliant UBL 2.1 XML with proper `cbc:`/`cac:` namespaces
+- **`peppol_sender/validator.py`** — `validate_basic()` checks required EN-16931 elements; `validate_xsd()` validates against UBL 2.1 XSD schemas in `schemas/`
 - **`peppol_sender/api.py`** — Peppyrus API client with retry (3 attempts, exponential backoff on 5xx): `package_message()`, `send_message()`, `get_report()`
 
 ## Key Design Decisions
 
 - Each module exports a single main function; no classes or complex abstractions
+- UBL generator uses `cbc:`/`cac:` namespaces with strict element ordering (XSD `xs:sequence`)
+- Tax calculation groups line items by `(tax_category, tax_percent)`; supports VAT-exempt (E/O)
 - Validation returns structured rule dicts with `id`, `type` (FATAL/WARNING), `location`, `message`
 - CLI refuses to send if any FATAL validation rules are triggered
 - Invoice XML is base64-encoded inside JSON for API transmission

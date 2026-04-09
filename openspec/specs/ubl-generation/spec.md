@@ -1,23 +1,54 @@
 # UBL Generation
 
-Generates minimal UBL 2.1 Invoice XML from a JSON invoice data structure.
+Generates EN-16931 compliant UBL 2.1 Invoice XML from a JSON invoice data structure.
+Uses proper `cbc:`/`cac:` namespaces and strict element ordering per XSD `xs:sequence`.
 
 ## ADDED Requirements
 
 ### Requirement: Generate UBL invoice from JSON
 
-Accepts a dict with invoice header fields, seller, buyer, and line items.
-Returns UTF-8 encoded, pretty-printed XML bytes with proper UBL 2.1 namespacing.
+The generator MUST produce a fully EN-16931 compliant UBL 2.1 Invoice XML from a
+JSON invoice data structure, including all mandatory fields required by PEPPOL BIS Billing 3.0.
 
-#### Scenario: Minimal valid invoice
+#### Scenario: EN-16931 document-level fields
 
-- **WHEN** a dict with `invoice_number`, `issue_date`, `currency`, `seller.name`, `buyer.name`, and at least one line item is provided
-- **THEN** `generate_ubl()` returns UTF-8 XML bytes containing an `Invoice` root element with `ID`, `IssueDate`, `AccountingSupplierParty`, `AccountingCustomerParty`, and `InvoiceLine` children
+- **WHEN** a valid invoice dict is provided
+- **THEN** the generated XML includes `CustomizationID`, `ProfileID`, `ID`, `IssueDate`, `InvoiceTypeCode`, `DocumentCurrencyCode` elements in correct order
 
-#### Scenario: Line item fields
+#### Scenario: Due date and payment terms
 
-- **WHEN** a line item contains `id`, `description`, `quantity`, `unit`, and `unit_price`
-- **THEN** the generated `InvoiceLine` element includes `ID`, `InvoicedQuantity` (with `unitCode` attribute), `LineExtensionAmount` (with `currencyID` attribute), `Item/Name`, and `Price/PriceAmount`
+- **WHEN** the invoice dict contains `due_date` and optionally `payment_terms`
+- **THEN** `DueDate` and `PaymentTerms/Note` elements are included in the XML
+
+#### Scenario: Seller party with full details
+
+- **WHEN** the invoice dict contains `seller` with `name`, `endpoint_id`, `endpoint_scheme`, `country`, and optionally `street`, `city`, `postal_code`, `vat`
+- **THEN** the `AccountingSupplierParty` includes `EndpointID` (with `@schemeID`), `PostalAddress` (with `Country/IdentificationCode`), `PartyLegalEntity/RegistrationName`, and optional `PartyTaxScheme`
+
+#### Scenario: Buyer party with full details
+
+- **WHEN** the invoice dict contains `buyer` with same fields as seller
+- **THEN** the `AccountingCustomerParty` includes the same subtree structure
+
+#### Scenario: Legal monetary totals
+
+- **WHEN** the invoice has one or more line items
+- **THEN** `LegalMonetaryTotal` is generated with `LineExtensionAmount`, `TaxExclusiveAmount`, `TaxInclusiveAmount`, and `PayableAmount`
+
+#### Scenario: Tax total for VAT-exempt business
+
+- **WHEN** line items use tax category `E` or `O` with percent `0`
+- **THEN** `TaxTotal` is generated with `TaxAmount` of `0.00`, a `TaxSubtotal` with the category code, and `TaxExemptionReason`
+
+#### Scenario: Tax total with standard VAT
+
+- **WHEN** line items have a `tax_percent` greater than zero
+- **THEN** `TaxTotal` is generated with calculated tax amounts grouped by tax category and rate
+
+#### Scenario: Line item tax classification
+
+- **WHEN** a line item is provided
+- **THEN** the `InvoiceLine/Item` includes `ClassifiedTaxCategory` with `ID`, `Percent`, and `TaxScheme/ID` set to `VAT`
 
 #### Scenario: Line extension amount defaults
 
@@ -27,7 +58,7 @@ Returns UTF-8 encoded, pretty-printed XML bytes with proper UBL 2.1 namespacing.
 #### Scenario: Default values
 
 - **WHEN** optional fields are omitted from the invoice dict
-- **THEN** defaults are applied: `invoice_number` = `INV-0001`, `seller.name` = `Seller`, `buyer.name` = `Buyer`, `unit` = `EA`
+- **THEN** defaults are applied: `invoice_number` = `INV-0001`, `invoice_type_code` = `380`, `currency` = `EUR`, `unit` = `EA`, `endpoint_scheme` = `0208`
 
 ### Requirement: CLI create subcommand
 

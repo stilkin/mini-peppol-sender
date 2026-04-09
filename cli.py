@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 
 from peppol_sender.api import get_report, package_message, send_message
 from peppol_sender.ubl import generate_ubl
-from peppol_sender.validator import validate_basic
+from peppol_sender.validator import validate_basic, validate_xsd
 
 load_dotenv()
 
@@ -34,9 +34,9 @@ def cmd_create(args: argparse.Namespace) -> None:
 def cmd_validate(args: argparse.Namespace) -> None:
     with open(args.file, "rb") as f:
         xml = f.read()
-    rules = validate_basic(xml)
+    rules = validate_basic(xml) + validate_xsd(xml)
     if not rules:
-        print("OK: basic validation passed (no rules)")
+        print("OK: validation passed (no rules)")
     else:
         print("Validation rules:")
         for r in rules:
