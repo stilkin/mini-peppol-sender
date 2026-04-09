@@ -25,6 +25,8 @@ The client MUST retry transient failures and the report MUST be accessible via C
 - **WHEN** `get_report()` receives a 5xx response or a network error
 - **THEN** the request is retried up to 3 times with exponential backoff
 
+## ADDED Requirements
+
 ### Requirement: CLI report subcommand
 
 The CLI MUST provide a `report` subcommand to fetch and display message reports.

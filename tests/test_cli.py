@@ -44,3 +44,15 @@ def test_validate_invalid_xml(tmp_path: Path) -> None:
     result = _run("validate", "--file", str(bad_file))
     assert result.returncode == 0  # CLI prints rules but doesn't exit non-zero
     assert "FATAL" in result.stdout
+
+
+def test_report_missing_credentials() -> None:
+    result = subprocess.run(
+        [sys.executable, str(CLI), "report", "--id", "fake-id"],
+        capture_output=True,
+        text=True,
+        cwd=str(PROJECT_ROOT),
+        env={**__import__("os").environ, "PEPPYRUS_API_KEY": ""},
+    )
+    assert result.returncode == 0
+    assert "Missing PEPPYRUS_API_KEY" in result.stdout

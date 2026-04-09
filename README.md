@@ -43,7 +43,13 @@ python cli.py validate --file invoice.xml
 python cli.py send --file invoice.xml --recipient 9908:nl987654321
 ```
 
-The `send` command runs validation first and refuses to transmit if any FATAL rules are triggered.
+The `send` command runs validation first and refuses to transmit if any FATAL rules are triggered. API calls retry automatically on server errors (5xx) with exponential backoff.
+
+**Check the report** for a sent message:
+
+```bash
+python cli.py report --id <MESSAGE_ID>
+```
 
 ## Invoice JSON format
 
@@ -114,7 +120,7 @@ Pre-commit hooks (Ruff + MyPy) are installed via `pre-commit install`.
 
 - The validator only checks for required element presence -- it does **not** perform full XSD or Schematron validation against official UBL/EN-16931 rules.
 - The UBL generator produces a minimal invoice. Fields like addresses, tax breakdowns, and payment terms are not yet mapped.
-- The `get_report()` function exists in `api.py` but is not yet wired into the CLI.
+- API retry is limited to 3 attempts on 5xx errors; no persistent retry queue.
 
 ## License
 

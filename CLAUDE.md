@@ -26,6 +26,9 @@ python cli.py validate --file invoice.xml
 # Send invoice to Peppyrus API
 python cli.py send --file invoice.xml --recipient <RECIPIENT_ID>
 
+# Fetch validation/transmission report for a sent message
+python cli.py report --id <MESSAGE_ID>
+
 # Lint and format
 ruff check .          # lint (add --fix for auto-fix)
 ruff format .         # format
@@ -46,10 +49,10 @@ pre-commit run --all-files
 
 The project follows a functional pipeline: **JSON → UBL XML → Validation → API transmission**.
 
-- **`cli.py`** — CLI entry point with three subcommands: `create`, `validate`, `send`
+- **`cli.py`** — CLI entry point with subcommands: `create`, `validate`, `send`, `report`
 - **`peppol_sender/ubl.py`** — `generate_ubl(invoice: dict) -> bytes` builds minimal UBL 2.1 XML using `xml.etree.ElementTree`
 - **`peppol_sender/validator.py`** — `validate_basic(xml_bytes: bytes) -> List[Dict]` checks required element presence (not full XSD/Schematron)
-- **`peppol_sender/api.py`** — Peppyrus API client: `package_message()` base64-encodes XML into a MessageBody dict, `send_message()` POSTs to `/message`, `get_report()` fetches validation reports
+- **`peppol_sender/api.py`** — Peppyrus API client with retry (3 attempts, exponential backoff on 5xx): `package_message()`, `send_message()`, `get_report()`
 
 ## Key Design Decisions
 
