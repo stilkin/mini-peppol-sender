@@ -12,7 +12,7 @@ Peppol Sender is a minimal Python scaffold for generating UBL 2.1 invoices from 
 # Setup
 python3 -m venv .venv
 . .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # includes runtime + dev deps
 
 # Copy and fill in environment variables
 cp .env.example .env
