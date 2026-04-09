@@ -1,0 +1,19 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Python 3.10+, requests, python-dotenv
+  Linting/typing: Ruff, MyPy (strict), pre-commit hooks
+  Domain: PEPPOL e-invoicing — generating UBL 2.1 invoices and sending them
+    via the Peppyrus Access Point API
+  Architecture: functional pipeline (JSON -> UBL XML -> validation -> API send)
+  CLI entry point: cli.py with subcommands (create, validate, send)
+  Core package: peppol_sender/ (ubl.py, validator.py, api.py)
+  API reference: docs/openapi_peppyrus.json (Peppyrus OpenAPI 3.0.2 spec)
+  License: PolyForm Noncommercial 1.0.0
+
+rules:
+  spec:
+    - Each requirement must have at least one scenario with WHEN/THEN
+    - Scenarios should be verifiable against the Peppyrus test endpoint
+  tasks:
+    - Break tasks into chunks of max 2 hours
