@@ -14,3 +14,4 @@ disallow_untyped_defs = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 strict_markers = true
+addopts = "--cov=peppol_sender --cov-fail-under=80"

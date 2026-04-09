@@ -3,7 +3,7 @@
 import base64
 from unittest.mock import MagicMock, patch
 
-from peppol_sender.api import package_message, send_message
+from peppol_sender.api import get_report, package_message, send_message
 
 SAMPLE_XML = b"<Invoice>test</Invoice>"
 
@@ -89,6 +89,23 @@ def test_no_retry_on_client_error(mock_session_fn: MagicMock) -> None:
     result = send_message({"test": "body"}, "key")
     assert result["status_code"] == 422
     mock_session.post.assert_called_once()
+
+
+@patch("peppol_sender.api._session")
+def test_get_report_success(mock_session_fn: MagicMock) -> None:
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"validationRules": [], "transmissionRules": ""}
+    mock_session = MagicMock()
+    mock_session.get.return_value = mock_resp
+    mock_session_fn.return_value = mock_session
+
+    result = get_report("msg-123", "api-key")
+    assert result["status_code"] == 200
+    assert result["json"]["validationRules"] == []
+
+    actual_url = mock_session.get.call_args[0][0]
+    assert actual_url.endswith("/message/msg-123/report")
 
 
 def test_session_has_retry_adapter() -> None:
