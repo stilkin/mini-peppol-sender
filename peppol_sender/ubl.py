@@ -5,6 +5,7 @@ invoice data structure. Supports VAT-exempt businesses (tax category E/O).
 """
 
 from collections import defaultdict
+from datetime import date
 from xml.dom import minidom
 from xml.etree import ElementTree as ET
 
@@ -159,7 +160,7 @@ def generate_ubl(invoice: dict) -> bytes:
     _sub(inv, "cbc", "CustomizationID", _CUSTOMIZATION_ID)
     _sub(inv, "cbc", "ProfileID", _PROFILE_ID)
     _sub(inv, "cbc", "ID", str(invoice.get("invoice_number", "INV-0001")))
-    _sub(inv, "cbc", "IssueDate", invoice.get("issue_date", ""))
+    _sub(inv, "cbc", "IssueDate", invoice.get("issue_date", date.today().isoformat()))
     if invoice.get("due_date"):
         _sub(inv, "cbc", "DueDate", invoice["due_date"])
     _sub(inv, "cbc", "InvoiceTypeCode", str(invoice.get("invoice_type_code", "380")))

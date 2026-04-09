@@ -59,6 +59,7 @@ The project follows a functional pipeline: **JSON → UBL XML → Validation →
 - Each module exports a single main function; no classes or complex abstractions
 - UBL generator uses `cbc:`/`cac:` namespaces with strict element ordering (XSD `xs:sequence`)
 - Tax calculation groups line items by `(tax_category, tax_percent)`; supports VAT-exempt (E/O)
+- `validate_basic()` checks 11 mandatory EN-16931 elements: `CustomizationID`, `ProfileID`, `ID`, `IssueDate`, `InvoiceTypeCode`, `DocumentCurrencyCode`, `AccountingSupplierParty`, `AccountingCustomerParty`, `TaxTotal`, `LegalMonetaryTotal`, `InvoiceLine`
 - Validation returns structured rule dicts with `id`, `type` (FATAL/WARNING), `location`, `message`
 - CLI refuses to send if any FATAL validation rules are triggered
 - Invoice XML is base64-encoded inside JSON for API transmission
