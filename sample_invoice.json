@@ -4,6 +4,7 @@
   "due_date": "2025-12-29",
   "invoice_type_code": "380",
   "currency": "EUR",
+  "buyer_reference": "PO-2025-042",
   "payment_terms": "Net 30 days",
   "seller": {
     "name": "ACME Consulting",

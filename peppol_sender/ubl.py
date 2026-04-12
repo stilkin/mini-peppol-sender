@@ -6,6 +6,7 @@ invoice data structure. Supports VAT-exempt businesses (tax category E/O).
 
 from collections import defaultdict
 from datetime import date
+from decimal import Decimal
 from xml.dom import minidom
 from xml.etree import ElementTree as ET
 
@@ -70,22 +71,27 @@ def _add_party(inv: ET.Element, wrapper_tag: str, party: dict, currency: str) ->
     _sub(ple, "cbc", "RegistrationName", party.get("registration_name", party.get("name", "")))
 
 
-def _add_tax_total(inv: ET.Element, lines: list[dict], currency: str) -> float:
+def _dec(value: object) -> Decimal:
+    """Convert a value to Decimal, rounding to 2 decimal places."""
+    return Decimal(str(value)).quantize(Decimal("0.01"))
+
+
+def _add_tax_total(inv: ET.Element, lines: list[dict], currency: str) -> Decimal:
     """Add TaxTotal element. Returns the total tax amount."""
-    groups: dict[tuple[str, float], float] = defaultdict(float)
+    groups: dict[tuple[str, Decimal], Decimal] = defaultdict(lambda: Decimal("0"))
     for line in lines:
         cat = line.get("tax_category", "E")
-        pct = float(line.get("tax_percent", 0))
-        ext = line.get("line_extension_amount", line.get("unit_price", 0) * line.get("quantity", 1))
+        pct = Decimal(str(line.get("tax_percent", 0)))
+        ext = _dec(line.get("line_extension_amount", line.get("unit_price", 0) * line.get("quantity", 1)))
         groups[(cat, pct)] += ext
 
-    total_tax = 0.0
+    total_tax = Decimal("0")
     tax_total = _sub(inv, "cac", "TaxTotal")
 
     # Compute total tax first (need it for TaxAmount which comes before subtotals)
     subtotals = []
     for (cat, pct), taxable in groups.items():
-        tax_amt = taxable * pct / 100
+        tax_amt = _dec(taxable * pct / 100)
         total_tax += tax_amt
         subtotals.append((cat, pct, taxable, tax_amt))
 
@@ -97,7 +103,7 @@ def _add_tax_total(inv: ET.Element, lines: list[dict], currency: str) -> float:
         _sub(st, "cbc", "TaxAmount", f"{tax_amt:.2f}", currencyID=currency)
         tc = _sub(st, "cac", "TaxCategory")
         _sub(tc, "cbc", "ID", cat)
-        _sub(tc, "cbc", "Percent", f"{pct:.0f}")
+        _sub(tc, "cbc", "Percent", f"{pct:g}")
         if cat in ("E", "O") and pct == 0:
             _sub(tc, "cbc", "TaxExemptionReason", "Exempt" if cat == "E" else "Not subject to VAT")
         ts = _sub(tc, "cac", "TaxScheme")
@@ -106,7 +112,7 @@ def _add_tax_total(inv: ET.Element, lines: list[dict], currency: str) -> float:
     return total_tax
 
 
-def _add_legal_monetary_total(inv: ET.Element, line_sum: float, tax_total: float, currency: str) -> None:
+def _add_legal_monetary_total(inv: ET.Element, line_sum: Decimal, tax_total: Decimal, currency: str) -> None:
     """Add LegalMonetaryTotal element."""
     lmt = _sub(inv, "cac", "LegalMonetaryTotal")
     _sub(lmt, "cbc", "LineExtensionAmount", f"{line_sum:.2f}", currencyID=currency)
@@ -115,7 +121,7 @@ def _add_legal_monetary_total(inv: ET.Element, line_sum: float, tax_total: float
     _sub(lmt, "cbc", "PayableAmount", f"{line_sum + tax_total:.2f}", currencyID=currency)
 
 
-def _add_invoice_line(inv: ET.Element, line: dict, currency: str) -> float:
+def _add_invoice_line(inv: ET.Element, line: dict, currency: str) -> Decimal:
     """Add a single InvoiceLine element. Returns the line extension amount."""
     il = _sub(inv, "cac", "InvoiceLine")
     _sub(il, "cbc", "ID", str(line.get("id", "1")))
@@ -124,7 +130,7 @@ def _add_invoice_line(inv: ET.Element, line: dict, currency: str) -> float:
     unit = line.get("unit", "EA")
     _sub(il, "cbc", "InvoicedQuantity", str(qty), unitCode=unit)
 
-    ext_amt = float(line.get("line_extension_amount", line.get("unit_price", 0) * qty))
+    ext_amt = _dec(line.get("line_extension_amount", line.get("unit_price", 0) * qty))
     _sub(il, "cbc", "LineExtensionAmount", f"{ext_amt:.2f}", currencyID=currency)
 
     # Item
@@ -132,13 +138,14 @@ def _add_invoice_line(inv: ET.Element, line: dict, currency: str) -> float:
     _sub(item, "cbc", "Name", line.get("description", ""))
     ctc = _sub(item, "cac", "ClassifiedTaxCategory")
     _sub(ctc, "cbc", "ID", line.get("tax_category", "E"))
-    _sub(ctc, "cbc", "Percent", f"{float(line.get('tax_percent', 0)):.0f}")
+    pct = Decimal(str(line.get("tax_percent", 0)))
+    _sub(ctc, "cbc", "Percent", f"{pct:g}")
     ts = _sub(ctc, "cac", "TaxScheme")
     _sub(ts, "cbc", "ID", "VAT")
 
     # Price
     price = _sub(il, "cac", "Price")
-    _sub(price, "cbc", "PriceAmount", f"{line.get('unit_price', 0):.2f}", currencyID=currency)
+    _sub(price, "cbc", "PriceAmount", f"{_dec(line.get('unit_price', 0)):.2f}", currencyID=currency)
 
     return ext_amt
 
@@ -165,6 +172,7 @@ def generate_ubl(invoice: dict) -> bytes:
         _sub(inv, "cbc", "DueDate", invoice["due_date"])
     _sub(inv, "cbc", "InvoiceTypeCode", str(invoice.get("invoice_type_code", "380")))
     _sub(inv, "cbc", "DocumentCurrencyCode", currency)
+    _sub(inv, "cbc", "BuyerReference", str(invoice.get("buyer_reference", invoice.get("invoice_number", "N/A"))))
 
     # Parties
     _add_party(inv, "AccountingSupplierParty", invoice.get("seller", {}), currency)
@@ -180,9 +188,9 @@ def generate_ubl(invoice: dict) -> bytes:
     tax_total = _add_tax_total(inv, lines, currency)
 
     # Totals
-    line_sum = 0.0
+    line_sum = Decimal("0")
     for line in lines:
-        line_sum += line.get("line_extension_amount", line.get("unit_price", 0) * line.get("quantity", 1))
+        line_sum += _dec(line.get("line_extension_amount", line.get("unit_price", 0) * line.get("quantity", 1)))
     _add_legal_monetary_total(inv, line_sum, tax_total, currency)
 
     # Invoice lines

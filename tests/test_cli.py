@@ -46,6 +46,27 @@ def test_validate_invalid_xml(tmp_path: Path) -> None:
     assert "FATAL" in result.stdout
 
 
+def test_send_rejects_xsd_invalid_xml(tmp_path: Path) -> None:
+    """cmd_send should reject XML that fails XSD validation."""
+    bad_file = tmp_path / "bad.xml"
+    bad_file.write_text("<not-an-invoice/>")
+
+    result = subprocess.run(
+        [sys.executable, str(CLI), "send", "--file", str(bad_file), "--recipient", "9908:test"],
+        capture_output=True,
+        text=True,
+        cwd=str(PROJECT_ROOT),
+        env={
+            **__import__("os").environ,
+            "PEPPYRUS_API_KEY": "test-key",
+            "PEPPOL_SENDER_ID": "9925:test",
+        },
+    )
+    assert result.returncode == 0
+    assert "FATAL" in result.stdout
+    assert "abort" in result.stdout.lower()
+
+
 def test_report_missing_credentials() -> None:
     result = subprocess.run(
         [sys.executable, str(CLI), "report", "--id", "fake-id"],

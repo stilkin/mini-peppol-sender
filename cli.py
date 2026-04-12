@@ -54,8 +54,8 @@ def cmd_send(args: argparse.Namespace) -> None:
     with open(args.file, "rb") as f:
         xml = f.read()
 
-    # optional quick validation
-    rules = validate_basic(xml)
+    # validate before sending (basic + XSD)
+    rules = validate_basic(xml) + validate_xsd(xml)
     fatal = [r for r in rules if r["type"] == "FATAL"]
     if fatal:
         print("Found FATAL validation rules — abort send:")

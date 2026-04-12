@@ -289,3 +289,62 @@ def test_output_is_utf8_bytes() -> None:
     result = generate_ubl(SAMPLE_INVOICE)
     assert isinstance(result, bytes)
     assert b"utf-8" in result[:100].lower()
+
+
+# --- BuyerReference ---
+
+
+def test_buyer_reference_from_field() -> None:
+    inv = {**SAMPLE_INVOICE, "buyer_reference": "PO-2025-042"}
+    root = _parse(inv)
+    ref = _find(root, "cbc:BuyerReference")
+    assert ref is not None
+    assert ref.text == "PO-2025-042"
+
+
+def test_buyer_reference_defaults_to_invoice_number() -> None:
+    root = _parse(SAMPLE_INVOICE)
+    ref = _find(root, "cbc:BuyerReference")
+    assert ref is not None
+    assert ref.text == "INV-TEST-001"
+
+
+# --- Fractional tax rates ---
+
+
+def test_fractional_tax_percent() -> None:
+    inv = {
+        **SAMPLE_INVOICE,
+        "lines": [{"id": "1", "quantity": 1, "unit_price": 100.00, "tax_category": "S", "tax_percent": 7.7}],
+    }
+    root = _parse(inv)
+    # TaxCategory Percent in TaxSubtotal
+    subtotal = root.find(f".//{{{CAC}}}TaxSubtotal")
+    assert subtotal is not None
+    pct = subtotal.find(f".//{{{CAC}}}TaxCategory/{{{CBC}}}Percent")
+    assert pct is not None
+    assert pct.text == "7.7"
+
+    # ClassifiedTaxCategory Percent on line item
+    ctc = root.find(f".//{{{CAC}}}InvoiceLine//{{{CAC}}}ClassifiedTaxCategory/{{{CBC}}}Percent")
+    assert ctc is not None
+    assert ctc.text == "7.7"
+
+
+# --- Decimal precision ---
+
+
+def test_decimal_precision_no_float_drift() -> None:
+    """Three items at 33.33 each should total 99.99, not suffer float drift."""
+    inv = {
+        **SAMPLE_INVOICE,
+        "lines": [
+            {"id": str(i), "quantity": 1, "unit_price": 33.33, "tax_category": "E", "tax_percent": 0}
+            for i in range(1, 4)
+        ],
+    }
+    root = _parse(inv)
+    lmt = root.find(f".//{{{CAC}}}LegalMonetaryTotal")
+    assert lmt is not None
+    assert lmt.find(f"{{{CBC}}}LineExtensionAmount").text == "99.99"  # type: ignore[union-attr]
+    assert lmt.find(f"{{{CBC}}}PayableAmount").text == "99.99"  # type: ignore[union-attr]
