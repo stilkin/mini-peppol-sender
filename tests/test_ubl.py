@@ -296,6 +296,58 @@ def test_legal_monetary_total_with_vat() -> None:
 # --- Line items ---
 
 
+def test_line_service_date_single_day() -> None:
+    """A single `service_date` produces InvoicePeriod with equal Start/End."""
+    inv = {
+        **SAMPLE_INVOICE,
+        "lines": [
+            {
+                "id": "1",
+                "description": "Consulting",
+                "quantity": 1,
+                "unit_price": 100.0,
+                "tax_category": "E",
+                "tax_percent": 0,
+                "service_date": "2026-04-10",
+            },
+        ],
+    }
+    root = _parse(inv)
+    period = root.find(f".//{{{CAC}}}InvoiceLine/{{{CAC}}}InvoicePeriod")
+    assert period is not None
+    assert period.find(f"{{{CBC}}}StartDate").text == "2026-04-10"  # type: ignore[union-attr]
+    assert period.find(f"{{{CBC}}}EndDate").text == "2026-04-10"  # type: ignore[union-attr]
+
+
+def test_line_service_date_range() -> None:
+    """Separate start/end dates produce InvoicePeriod with distinct values."""
+    inv = {
+        **SAMPLE_INVOICE,
+        "lines": [
+            {
+                "id": "1",
+                "description": "Consulting",
+                "quantity": 1,
+                "unit_price": 100.0,
+                "tax_category": "E",
+                "tax_percent": 0,
+                "service_start_date": "2026-04-01",
+                "service_end_date": "2026-04-10",
+            },
+        ],
+    }
+    root = _parse(inv)
+    period = root.find(f".//{{{CAC}}}InvoiceLine/{{{CAC}}}InvoicePeriod")
+    assert period is not None
+    assert period.find(f"{{{CBC}}}StartDate").text == "2026-04-01"  # type: ignore[union-attr]
+    assert period.find(f"{{{CBC}}}EndDate").text == "2026-04-10"  # type: ignore[union-attr]
+
+
+def test_line_no_service_date_omits_invoice_period() -> None:
+    root = _parse(SAMPLE_INVOICE)
+    assert root.find(f".//{{{CAC}}}InvoiceLine/{{{CAC}}}InvoicePeriod") is None
+
+
 def test_line_item_tax_category() -> None:
     root = _parse(SAMPLE_INVOICE)
     ctc = root.find(f".//{{{CAC}}}InvoiceLine//{{{CAC}}}ClassifiedTaxCategory")

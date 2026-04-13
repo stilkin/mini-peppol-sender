@@ -380,6 +380,10 @@ function makeLineRow(line = {}) {
     </div>
     <div class="line-fields">
       <div class="field-cell">
+        <span class="micro">service date</span>
+        <input type="date" data-line="service_date" class="mono">
+      </div>
+      <div class="field-cell">
         <span class="micro">qty</span>
         <input type="number" data-line="quantity" class="mono" min="0" step="0.01" value="1">
       </div>
@@ -452,6 +456,8 @@ function makeLineRow(line = {}) {
       });
       return;
     }
+    // Dates belong to a specific invoice, not to a reusable template.
+    delete data.service_date;
     saveTemplate(data);
     renderTemplateDropdown();
     const btn = row.querySelector(".save-tpl-btn");
@@ -471,7 +477,7 @@ function clearLineRow(row) {
     if (el.dataset.line === "quantity") el.value = "1";
     else if (el.dataset.line === "unit_price") el.value = "0.00";
     else if (el.dataset.line === "tax_percent") el.value = "0";
-    else el.value = "";
+    else el.value = "";  // clears description, service_date, etc.
   });
   row.querySelector('[data-line="unit"]').value = "EA";
   row.querySelector('[data-line="tax_category"]').value = "E";

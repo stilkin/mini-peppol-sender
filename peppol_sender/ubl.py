@@ -148,6 +148,16 @@ def _add_invoice_line(inv: ET.Element, line: dict, currency: str) -> Decimal:
     ext_amt = _dec(line.get("line_extension_amount", line.get("unit_price", 0) * qty))
     _sub(il, "cbc", "LineExtensionAmount", f"{ext_amt:.2f}", currencyID=currency)
 
+    # InvoicePeriod — BG-26 / BT-134..135. Single date supported via service_date;
+    # a range via service_start_date / service_end_date. BR-CO-25 requires both
+    # start and end to be present when either is, so we mirror if only one is set.
+    start_date = line.get("service_start_date") or line.get("service_date")
+    end_date = line.get("service_end_date") or line.get("service_date")
+    if start_date or end_date:
+        period = _sub(il, "cac", "InvoicePeriod")
+        _sub(period, "cbc", "StartDate", start_date or end_date)
+        _sub(period, "cbc", "EndDate", end_date or start_date)
+
     # Item
     item = _sub(il, "cac", "Item")
     _sub(item, "cbc", "Name", line.get("description", ""))
