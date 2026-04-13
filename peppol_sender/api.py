@@ -9,6 +9,18 @@ import base64
 from typing import Any
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+
+def _session() -> requests.Session:
+    """Return a session with retry on transient server errors."""
+    retry = Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
+    adapter = HTTPAdapter(max_retries=retry)
+    session = requests.Session()
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
 
 
 def _parse_response(resp: requests.Response) -> dict[str, Any]:
@@ -55,7 +67,7 @@ def send_message(
         "Content-Type": "application/json",
         "X-Api-Key": api_key,
     }
-    resp = requests.post(url, json=message_body, headers=headers, timeout=30)
+    resp = _session().post(url, json=message_body, headers=headers, timeout=30)
     return _parse_response(resp)
 
 
@@ -63,5 +75,5 @@ def get_report(message_id: str, api_key: str, base_url: str = "https://api.test.
     """GET /message/{id}/report and return parsed JSON on success."""
     url = base_url.rstrip("/") + f"/message/{message_id}/report"
     headers = {"X-Api-Key": api_key}
-    resp = requests.get(url, headers=headers, timeout=30)
+    resp = _session().get(url, headers=headers, timeout=30)
     return _parse_response(resp)

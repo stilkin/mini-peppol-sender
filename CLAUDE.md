@@ -12,7 +12,7 @@ Peppol Sender is a minimal Python scaffold for generating UBL 2.1 invoices from 
 # Setup
 python3 -m venv .venv
 . .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # includes runtime + dev deps
 
 # Copy and fill in environment variables
 cp .env.example .env
@@ -26,6 +26,9 @@ python cli.py validate --file invoice.xml
 # Send invoice to Peppyrus API
 python cli.py send --file invoice.xml --recipient <RECIPIENT_ID>
 
+# Fetch validation/transmission report for a sent message
+python cli.py report --id <MESSAGE_ID>
+
 # Lint and format
 ruff check .          # lint (add --fix for auto-fix)
 ruff format .         # format
@@ -33,24 +36,30 @@ ruff format .         # format
 # Type checking
 mypy .
 
+# Tests
+pytest                    # run all tests
+pytest -k test_name       # run a single test by name
+pytest tests/test_ubl.py  # run a single test file
+
 # Pre-commit hooks (ruff + mypy, installed via `pre-commit install`)
 pre-commit run --all-files
 ```
-
-No test framework is configured yet.
 
 ## Architecture
 
 The project follows a functional pipeline: **JSON → UBL XML → Validation → API transmission**.
 
-- **`cli.py`** — CLI entry point with three subcommands: `create`, `validate`, `send`
-- **`peppol_sender/ubl.py`** — `generate_ubl(invoice: dict) -> bytes` builds minimal UBL 2.1 XML using `xml.etree.ElementTree`
-- **`peppol_sender/validator.py`** — `validate_basic(xml_bytes: bytes) -> List[Dict]` checks required element presence (not full XSD/Schematron)
-- **`peppol_sender/api.py`** — Peppyrus API client: `package_message()` base64-encodes XML into a MessageBody dict, `send_message()` POSTs to `/message`, `get_report()` fetches validation reports
+- **`cli.py`** — CLI entry point with subcommands: `create`, `validate`, `send`, `report`
+- **`peppol_sender/ubl.py`** — `generate_ubl(invoice: dict) -> bytes` builds EN-16931 compliant UBL 2.1 XML with proper `cbc:`/`cac:` namespaces
+- **`peppol_sender/validator.py`** — `validate_basic()` checks required EN-16931 elements; `validate_xsd()` validates against UBL 2.1 XSD schemas in `schemas/`
+- **`peppol_sender/api.py`** — Peppyrus API client with retry (3 attempts, exponential backoff on 5xx): `package_message()`, `send_message()`, `get_report()`
 
 ## Key Design Decisions
 
 - Each module exports a single main function; no classes or complex abstractions
+- UBL generator uses `cbc:`/`cac:` namespaces with strict element ordering (XSD `xs:sequence`)
+- Tax calculation groups line items by `(tax_category, tax_percent)`; supports VAT-exempt (E/O)
+- `validate_basic()` checks 11 mandatory EN-16931 elements: `CustomizationID`, `ProfileID`, `ID`, `IssueDate`, `InvoiceTypeCode`, `DocumentCurrencyCode`, `AccountingSupplierParty`, `AccountingCustomerParty`, `TaxTotal`, `LegalMonetaryTotal`, `InvoiceLine`
 - Validation returns structured rule dicts with `id`, `type` (FATAL/WARNING), `location`, `message`
 - CLI refuses to send if any FATAL validation rules are triggered
 - Invoice XML is base64-encoded inside JSON for API transmission

@@ -15,9 +15,9 @@ import os
 
 from dotenv import load_dotenv
 
-from peppol_sender.api import package_message, send_message
+from peppol_sender.api import get_report, package_message, send_message
 from peppol_sender.ubl import generate_ubl
-from peppol_sender.validator import validate_basic
+from peppol_sender.validator import validate_basic, validate_xsd
 
 load_dotenv()
 
@@ -34,9 +34,9 @@ def cmd_create(args: argparse.Namespace) -> None:
 def cmd_validate(args: argparse.Namespace) -> None:
     with open(args.file, "rb") as f:
         xml = f.read()
-    rules = validate_basic(xml)
+    rules = validate_basic(xml) + validate_xsd(xml)
     if not rules:
-        print("OK: basic validation passed (no rules)")
+        print("OK: validation passed (no rules)")
     else:
         print("Validation rules:")
         for r in rules:
@@ -54,8 +54,8 @@ def cmd_send(args: argparse.Namespace) -> None:
     with open(args.file, "rb") as f:
         xml = f.read()
 
-    # optional quick validation
-    rules = validate_basic(xml)
+    # validate before sending (basic + XSD)
+    rules = validate_basic(xml) + validate_xsd(xml)
     fatal = [r for r in rules if r["type"] == "FATAL"]
     if fatal:
         print("Found FATAL validation rules — abort send:")
@@ -74,6 +74,33 @@ def cmd_send(args: argparse.Namespace) -> None:
     resp = send_message(message, api_key, base_url)
     print(f"HTTP {resp['status_code']}")
     print(resp["json"])
+
+
+def cmd_report(args: argparse.Namespace) -> None:
+    api_key = os.getenv("PEPPYRUS_API_KEY")
+    base_url = os.getenv("PEPPYRUS_BASE_URL", "https://api.test.peppyrus.be/v1")
+    if not api_key:
+        print("Missing PEPPYRUS_API_KEY in environment")
+        return
+
+    resp = get_report(args.id, api_key, base_url)
+    print(f"HTTP {resp['status_code']}")
+
+    report = resp["json"]
+    validation_rules = report.get("validationRules", [])
+    transmission_rules = report.get("transmissionRules", "")
+
+    if not validation_rules and not transmission_rules:
+        print("No rules reported.")
+        return
+
+    if validation_rules:
+        print("Validation rules:")
+        for r in validation_rules:
+            print(f" - {r['type']}: {r['id']} - {r['message']} @ {r['location']}")
+
+    if transmission_rules:
+        print(f"Transmission rules: {transmission_rules}")
 
 
 def main() -> None:
@@ -95,6 +122,10 @@ def main() -> None:
     s.add_argument("--processType", required=False)
     s.add_argument("--documentType", required=False)
     s.set_defaults(func=cmd_send)
+
+    r = sub.add_parser("report")
+    r.add_argument("--id", required=True, help="Message ID returned by send")
+    r.set_defaults(func=cmd_report)
 
     args = p.parse_args()
     if not args.cmd:

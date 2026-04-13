@@ -25,8 +25,8 @@ Thumbs.db
 htmlcov/
 
 # OpenSpec
-openspec/changes/*/design.md
-openspec/changes/*/tasks.md
+# openspec/changes/*/design.md
+# openspec/changes/*/tasks.md
 
 # Generated files
 *.xml
