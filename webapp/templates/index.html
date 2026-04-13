@@ -30,6 +30,7 @@
           <div class="seller-line seller-name">— loading —</div>
           <div class="seller-line seller-address"></div>
           <div class="seller-line seller-id"></div>
+          <div class="seller-line seller-contact"></div>
         </div>
       </section>
 
@@ -92,6 +93,18 @@
           <label class="field">
             <span class="micro">Postal code</span>
             <input type="text" data-buyer="postal_code" class="mono">
+          </label>
+          <label class="field span-2">
+            <span class="micro">Contact name (optional)</span>
+            <input type="text" data-buyer="contact_name">
+          </label>
+          <label class="field span-2">
+            <span class="micro">Contact email (optional)</span>
+            <input type="email" data-buyer="contact_email">
+          </label>
+          <label class="field span-2">
+            <span class="micro">Contact phone (optional)</span>
+            <input type="tel" data-buyer="contact_phone" class="mono">
           </label>
         </div>
       </section>
@@ -211,6 +224,22 @@
       <label class="field">
         <span class="micro">Default tax %</span>
         <input type="number" id="default-tax-percent" class="mono" min="0" step="1">
+      </label>
+
+      <h2 class="settings-subhead">Your contact info</h2>
+      <p class="meta">Printed on every invoice you send.</p>
+
+      <label class="field">
+        <span class="micro">Contact name</span>
+        <input type="text" id="seller-contact-name">
+      </label>
+      <label class="field">
+        <span class="micro">Contact email</span>
+        <input type="email" id="seller-contact-email">
+      </label>
+      <label class="field">
+        <span class="micro">Contact phone</span>
+        <input type="tel" id="seller-contact-phone" class="mono">
       </label>
 
       <div class="modal-actions">

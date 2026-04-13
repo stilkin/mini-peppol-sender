@@ -214,6 +214,16 @@ button { font-family: inherit; }
   letter-spacing: 0.02em;
 }
 
+.seller-contact {
+  font-family: var(--body);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--ink-mid);
+  margin-top: 4px;
+}
+
+.seller-contact:empty { display: none; }
+
 /* -------- Form fields (underline-only) -------- */
 .field {
   display: flex;
@@ -746,6 +756,13 @@ select#template-select {
   font-size: 28px;
   margin: 0;
   color: var(--ink);
+}
+
+.settings-form .settings-subhead {
+  font-size: 20px;
+  margin-top: 14px;
+  padding-top: 18px;
+  border-top: 1px dotted var(--rule);
 }
 
 .settings-form .meta {

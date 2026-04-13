@@ -10,6 +10,7 @@ const LS_KEYS = {
   customers: "peppol_customers",
   templates: "peppol_line_templates",
   lastNumber: "peppol_last_invoice_number",
+  sellerContact: "peppol_seller_contact",
 };
 
 const DEFAULT_DEFAULTS = {
@@ -85,6 +86,16 @@ function getDefaults() {
 
 function saveDefaults(defaults) {
   lsSet(LS_KEYS.defaults, defaults);
+}
+
+// ---------- Seller contact (local-only) ----------
+
+function getSellerContact() {
+  return lsGet(LS_KEYS.sellerContact, { name: "", email: "", phone: "" });
+}
+
+function saveSellerContact(contact) {
+  lsSet(LS_KEYS.sellerContact, contact);
 }
 
 // ---------- Invoice number ----------
@@ -173,6 +184,7 @@ async function loadSeller() {
     const info = await resp.json();
     const isBelgium = (info.country || "").toLowerCase().startsWith("belg");
     const enterpriseNumber = (info.VAT || "").replace(/^[A-Za-z]{2}/, "");
+    const contact = getSellerContact();
     sellerCache = {
       name: info.name || "",
       registration_name: info.name || "",
@@ -186,18 +198,40 @@ async function loadSeller() {
       // BT-30 — Seller legal registration identifier.
       legal_id: enterpriseNumber,
       legal_id_scheme: isBelgium ? "0208" : "",
+      // BT-41..43 — optional contact. Populated from the Settings modal.
+      contact_name: contact.name || "",
+      contact_email: contact.email || "",
+      contact_phone: contact.phone || "",
     };
-    card.querySelector(".seller-name").textContent = info.name || "—";
-    card.querySelector(".seller-address").textContent =
-      [sellerCache.street, [sellerCache.postal_code, sellerCache.city].filter(Boolean).join(" "), info.country]
-        .filter(Boolean)
-        .join(" · ");
-    card.querySelector(".seller-id").textContent =
-      `VAT ${info.VAT || "—"}  ·  Endpoint ${sellerCache.endpoint_scheme}:${sellerCache.endpoint_id || "—"}`;
+    renderSellerCard(info);
   } catch (err) {
     card.querySelector(".seller-name").textContent = "Could not load seller info";
     card.querySelector(".seller-address").textContent = String(err);
   }
+}
+
+function renderSellerCard(info) {
+  const card = $("#seller-card");
+  if (!sellerCache) return;
+  card.querySelector(".seller-name").textContent = sellerCache.name || "—";
+  card.querySelector(".seller-address").textContent =
+    [
+      sellerCache.street,
+      [sellerCache.postal_code, sellerCache.city].filter(Boolean).join(" "),
+      (info && info.country) || sellerCache.country,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  card.querySelector(".seller-id").textContent =
+    `VAT ${sellerCache.vat || "—"}  ·  Endpoint ${sellerCache.endpoint_scheme}:${sellerCache.endpoint_id || "—"}`;
+  const contactParts = [
+    sellerCache.contact_name,
+    sellerCache.contact_email,
+    sellerCache.contact_phone,
+  ].filter(Boolean);
+  card.querySelector(".seller-contact").textContent = contactParts.length
+    ? `Contact: ${contactParts.join(" · ")}`
+    : "";
 }
 
 // ---------- Buyer fields ----------
@@ -648,6 +682,10 @@ function openSettings() {
   $("#default-due-days").value = d.due_days;
   $("#default-tax-category").value = d.tax_category;
   $("#default-tax-percent").value = d.tax_percent;
+  const contact = getSellerContact();
+  $("#seller-contact-name").value = contact.name || "";
+  $("#seller-contact-email").value = contact.email || "";
+  $("#seller-contact-phone").value = contact.phone || "";
   $("#settings-modal").showModal();
 }
 
@@ -655,10 +693,23 @@ function saveSettingsFromModal() {
   saveDefaults({
     currency: $("#default-currency").value || "EUR",
     payment_terms: $("#default-payment-terms").value,
-    due_days: Number($("#default-due-days").value || 30),
+    due_days: Number($("#default-due-days").value || 21),
     tax_category: $("#default-tax-category").value || "E",
     tax_percent: Number($("#default-tax-percent").value || 0),
   });
+  saveSellerContact({
+    name: $("#seller-contact-name").value,
+    email: $("#seller-contact-email").value,
+    phone: $("#seller-contact-phone").value,
+  });
+  // Re-apply contact to sellerCache + refresh the card
+  if (sellerCache) {
+    const c = getSellerContact();
+    sellerCache.contact_name = c.name;
+    sellerCache.contact_email = c.email;
+    sellerCache.contact_phone = c.phone;
+    renderSellerCard(null);
+  }
   $("#settings-modal").close();
   applyDefaultsToForm();
 }

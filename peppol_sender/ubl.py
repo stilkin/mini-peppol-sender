@@ -75,6 +75,16 @@ def _add_party(inv: ET.Element, wrapper_tag: str, party: dict, currency: str) ->
         attrs = {"schemeID": scheme} if scheme else {}
         _sub(ple, "cbc", "CompanyID", legal_id, **attrs)
 
+    # Contact — BT-41..43 (seller) / BT-56..58 (buyer). All optional.
+    if party.get("contact_name") or party.get("contact_phone") or party.get("contact_email"):
+        contact = _sub(p, "cac", "Contact")
+        if party.get("contact_name"):
+            _sub(contact, "cbc", "Name", party["contact_name"])
+        if party.get("contact_phone"):
+            _sub(contact, "cbc", "Telephone", party["contact_phone"])
+        if party.get("contact_email"):
+            _sub(contact, "cbc", "ElectronicMail", party["contact_email"])
+
 
 def _dec(value: object) -> Decimal:
     """Convert a value to Decimal, rounding to 2 decimal places."""

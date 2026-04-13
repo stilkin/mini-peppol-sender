@@ -161,6 +161,43 @@ def test_legal_entity_no_company_id_when_absent() -> None:
     assert seller.find(f".//{{{CAC}}}PartyLegalEntity/{{{CBC}}}CompanyID") is None
 
 
+def test_party_contact_emitted() -> None:
+    """BT-41..43 (seller) / BT-56..58 (buyer): Contact block is optional."""
+    seller = dict(SAMPLE_INVOICE["seller"])  # type: ignore[arg-type]
+    seller["contact_name"] = "Jane Doe"
+    seller["contact_email"] = "jane@example.be"
+    seller["contact_phone"] = "+32 14 00 00 00"
+    inv = {**SAMPLE_INVOICE, "seller": seller}
+    root = _parse(inv)
+
+    contact = root.find(f".//{{{CAC}}}AccountingSupplierParty/{{{CAC}}}Party/{{{CAC}}}Contact")
+    assert contact is not None
+    assert contact.find(f"{{{CBC}}}Name").text == "Jane Doe"  # type: ignore[union-attr]
+    assert contact.find(f"{{{CBC}}}ElectronicMail").text == "jane@example.be"  # type: ignore[union-attr]
+    assert contact.find(f"{{{CBC}}}Telephone").text == "+32 14 00 00 00"  # type: ignore[union-attr]
+
+
+def test_party_contact_omitted_when_absent() -> None:
+    root = _parse(SAMPLE_INVOICE)
+    seller_party = root.find(f".//{{{CAC}}}AccountingSupplierParty/{{{CAC}}}Party")
+    assert seller_party is not None
+    assert seller_party.find(f"{{{CAC}}}Contact") is None
+
+
+def test_party_contact_partial() -> None:
+    """Only the fields that are set are emitted."""
+    seller = dict(SAMPLE_INVOICE["seller"])  # type: ignore[arg-type]
+    seller["contact_email"] = "only@example.be"
+    inv = {**SAMPLE_INVOICE, "seller": seller}
+    root = _parse(inv)
+
+    contact = root.find(f".//{{{CAC}}}AccountingSupplierParty/{{{CAC}}}Party/{{{CAC}}}Contact")
+    assert contact is not None
+    assert contact.find(f"{{{CBC}}}ElectronicMail").text == "only@example.be"  # type: ignore[union-attr]
+    assert contact.find(f"{{{CBC}}}Name") is None
+    assert contact.find(f"{{{CBC}}}Telephone") is None
+
+
 def test_seller_no_vat_omits_tax_scheme() -> None:
     root = _parse(SAMPLE_INVOICE)
     supplier = root.find(f".//{{{CAC}}}AccountingSupplierParty/{{{CAC}}}Party")
