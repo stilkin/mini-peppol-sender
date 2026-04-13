@@ -129,6 +129,38 @@ def test_buyer_party_with_vat() -> None:
     assert vat.text == "NL987654321B01"
 
 
+def test_legal_entity_company_id() -> None:
+    """BT-30/BT-47: PartyLegalEntity/CompanyID with optional schemeID."""
+    seller = dict(SAMPLE_INVOICE["seller"])  # type: ignore[arg-type]
+    seller["legal_id"] = "0674415660"
+    seller["legal_id_scheme"] = "0208"
+    buyer = dict(SAMPLE_INVOICE["buyer"])  # type: ignore[arg-type]
+    buyer["legal_id"] = "987654321"  # no scheme
+    inv = {**SAMPLE_INVOICE, "seller": seller, "buyer": buyer}
+    root = _parse(inv)
+
+    seller_party = root.find(f".//{{{CAC}}}AccountingSupplierParty/{{{CAC}}}Party")
+    assert seller_party is not None
+    seller_cid = seller_party.find(f".//{{{CAC}}}PartyLegalEntity/{{{CBC}}}CompanyID")
+    assert seller_cid is not None
+    assert seller_cid.text == "0674415660"
+    assert seller_cid.get("schemeID") == "0208"
+
+    buyer_party = root.find(f".//{{{CAC}}}AccountingCustomerParty/{{{CAC}}}Party")
+    assert buyer_party is not None
+    buyer_cid = buyer_party.find(f".//{{{CAC}}}PartyLegalEntity/{{{CBC}}}CompanyID")
+    assert buyer_cid is not None
+    assert buyer_cid.text == "987654321"
+    assert buyer_cid.get("schemeID") is None
+
+
+def test_legal_entity_no_company_id_when_absent() -> None:
+    root = _parse(SAMPLE_INVOICE)
+    seller = root.find(f".//{{{CAC}}}AccountingSupplierParty/{{{CAC}}}Party")
+    assert seller is not None
+    assert seller.find(f".//{{{CAC}}}PartyLegalEntity/{{{CBC}}}CompanyID") is None
+
+
 def test_seller_no_vat_omits_tax_scheme() -> None:
     root = _parse(SAMPLE_INVOICE)
     supplier = root.find(f".//{{{CAC}}}AccountingSupplierParty/{{{CAC}}}Party")

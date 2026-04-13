@@ -66,9 +66,14 @@ def _add_party(inv: ET.Element, wrapper_tag: str, party: dict, currency: str) ->
         ts = _sub(pts, "cac", "TaxScheme")
         _sub(ts, "cbc", "ID", "VAT")
 
-    # PartyLegalEntity
+    # PartyLegalEntity — RegistrationName + optional CompanyID (BT-30/BT-47)
     ple = _sub(p, "cac", "PartyLegalEntity")
     _sub(ple, "cbc", "RegistrationName", party.get("registration_name", party.get("name", "")))
+    legal_id = party.get("legal_id")
+    if legal_id:
+        scheme = party.get("legal_id_scheme")
+        attrs = {"schemeID": scheme} if scheme else {}
+        _sub(ple, "cbc", "CompanyID", legal_id, **attrs)
 
 
 def _dec(value: object) -> Decimal:

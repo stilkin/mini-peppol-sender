@@ -171,16 +171,21 @@ async function loadSeller() {
     const resp = await fetch("/api/org-info");
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     const info = await resp.json();
+    const isBelgium = (info.country || "").toLowerCase().startsWith("belg");
+    const enterpriseNumber = (info.VAT || "").replace(/^[A-Za-z]{2}/, "");
     sellerCache = {
       name: info.name || "",
       registration_name: info.name || "",
       vat: info.VAT || "",
-      endpoint_id: (info.VAT || "").replace(/^[A-Z]{2}/, ""),
+      endpoint_id: enterpriseNumber,
       endpoint_scheme: "0208",
-      country: (info.country || "").slice(0, 2).toUpperCase() === "BE" ? "BE" : "",
+      country: isBelgium ? "BE" : "",
       street: [info.street, info.houseNumber].filter(Boolean).join(" "),
       city: info.city || "",
       postal_code: info.zipCode || "",
+      // BT-30 — Seller legal registration identifier.
+      legal_id: enterpriseNumber,
+      legal_id_scheme: isBelgium ? "0208" : "",
     };
     card.querySelector(".seller-name").textContent = info.name || "—";
     card.querySelector(".seller-address").textContent =
@@ -481,6 +486,14 @@ function collectInvoice() {
   const buyer = getBuyer();
   // Safety net: country codes must be uppercase (BR-CL-14).
   if (buyer.country) buyer.country = buyer.country.toUpperCase();
+
+  // Auto-derive BT-47 (buyer legal registration identifier) from the VAT
+  // number when the buyer is Belgian — the enterprise number is just the
+  // VAT without the "BE" prefix, registered under scheme 0208.
+  if (buyer.country === "BE" && buyer.vat && !buyer.legal_id) {
+    buyer.legal_id = buyer.vat.replace(/^[A-Za-z]{2}/, "");
+    buyer.legal_id_scheme = "0208";
+  }
 
   // The seller may have been filled from Peppyrus; fall back to cache.
   const seller = { ...(sellerCache || {}) };

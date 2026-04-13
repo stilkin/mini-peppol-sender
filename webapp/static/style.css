@@ -260,6 +260,31 @@ button { font-family: inherit; }
 
 .field input[readonly] { color: var(--ink-soft); }
 
+.field textarea {
+  font-family: var(--body);
+  font-size: 17px;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--rule);
+  padding: 6px 0 7px;
+  border-radius: 0;
+  outline: none;
+  transition: border-color 180ms ease;
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+  min-height: 72px;
+  line-height: 1.45;
+}
+
+.field textarea::placeholder {
+  color: rgba(122, 112, 100, 0.55);
+  font-style: italic;
+}
+
+.field textarea:focus { border-bottom-color: var(--oxblood); }
+
 /* -------- Bill-to controls -------- */
 .bill-to-controls {
   display: grid;
