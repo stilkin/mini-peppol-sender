@@ -14,8 +14,8 @@ const LS_KEYS = {
 
 const DEFAULT_DEFAULTS = {
   currency: "EUR",
-  payment_terms: "Net 30 days",
-  due_days: 30,
+  payment_terms: "Net 21 days",
+  due_days: 21,
   tax_category: "E",
   tax_percent: 0,
 };
@@ -171,6 +171,10 @@ function setBuyer(buyer) {
     const key = input.dataset.buyer;
     input.value = buyer[key] ?? "";
   });
+  // Derive recipient participant ID from endpoint fields when both are present.
+  if (buyer.endpoint_scheme && buyer.endpoint_id) {
+    $("#recipient").value = `${buyer.endpoint_scheme}:${buyer.endpoint_id}`;
+  }
 }
 
 function getBuyer() {
@@ -204,6 +208,13 @@ function findIdentifier(entity, scheme) {
     (i) => (i.scheme || "").toUpperCase() === scheme.toUpperCase(),
   );
   return hit ? hit.value : "";
+}
+
+// PEPPOL directory only stores a free-text geoInfo like "Herentals, Belgium".
+// Split on commas: first part is the city (best effort).
+function cityFromGeoInfo(geoInfo) {
+  if (!geoInfo) return "";
+  return String(geoInfo).split(",")[0].trim();
 }
 
 async function lookupBuyer() {
@@ -259,6 +270,8 @@ async function lookupBuyer() {
             }
             const vatId = findIdentifier(entity, "VAT");
             if (vatId && !buyer.vat) buyer.vat = vatId;
+            const city = cityFromGeoInfo(entity.geoInfo);
+            if (city && !buyer.city) buyer.city = city;
             enriched = true;
           }
         }
