@@ -16,6 +16,7 @@ Designed for a small business that needs to issue invoices themselves, not for e
 | Layer | Stack |
 |---|---|
 | Language | Python 3.10+ |
+| Package manager | [`uv`](https://docs.astral.sh/uv/) (venv + pip + lockfile in one tool) |
 | HTTP client | `requests` + `urllib3.Retry` adapter |
 | Configuration | `python-dotenv` |
 | XSD validation | `xmlschema` (pure Python) with a cached schema instance |
@@ -30,15 +31,23 @@ PEPPOL BIS Billing 3.0 process type and document type strings are sourced from t
 
 ## Installation
 
-Requires Python 3.10 or newer.
+Requires Python 3.10 or newer. Install [uv](https://docs.astral.sh/uv/getting-started/installation/) first:
 
 ```bash
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt       # runtime only
-# or
-pip install -r requirements-dev.txt   # includes lint, types, tests, pre-commit
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
+
+Then clone the repo and sync dependencies:
+
+```bash
+uv sync              # installs runtime + dev dependencies into .venv
+# or
+uv sync --no-dev     # runtime dependencies only (smaller install)
+```
+
+`uv sync` creates a `.venv/` in the project root, installs everything pinned
+via `uv.lock`, and installs the `peppol_sender` package itself in editable
+mode. No `pip install`, no `python -m venv` — one command.
 
 ## Configuration
 
@@ -58,20 +67,22 @@ Your API key is read once at process start and stays server-side. The web UI nev
 
 ## Running the tool
 
+Prefix these with `uv run` (which transparently uses `.venv`), or activate the venv first with `. .venv/bin/activate` and drop the prefix.
+
 ### Command-line
 
 ```bash
 # 1. Generate UBL XML from a JSON invoice
-python cli.py create --input sample_invoice.json --out invoice.xml
+uv run python cli.py create --input sample_invoice.json --out invoice.xml
 
 # 2. Validate it (structural checks + XSD)
-python cli.py validate --file invoice.xml
+uv run python cli.py validate --file invoice.xml
 
 # 3. Send it to a recipient on the PEPPOL network
-python cli.py send --file invoice.xml --recipient 0208:be0674415660
+uv run python cli.py send --file invoice.xml --recipient 0208:be0674415660
 
 # 4. Fetch the validation/transmission report for a sent message
-python cli.py report --id <MESSAGE_ID>
+uv run python cli.py report --id <MESSAGE_ID>
 ```
 
 The `send` command runs validation first and refuses to transmit if any FATAL rules are triggered. API calls retry automatically on 5xx errors with exponential backoff.
@@ -81,7 +92,7 @@ See [`docs/invoice-json-schema.md`](docs/invoice-json-schema.md) for the full JS
 ### Web UI
 
 ```bash
-python webapp/app.py
+uv run python webapp/app.py
 # open http://127.0.0.1:5000
 ```
 
@@ -120,16 +131,18 @@ openspec/                  Spec-driven change history (archived)
 ## Development
 
 ```bash
-ruff check .                     # lint
-ruff format .                    # format
-mypy .                           # type check
-pytest                           # run the test suite
-pytest -k test_name              # run a single test by name
-pytest tests/test_ubl.py         # run a single test file
-pre-commit run --all-files       # run all pre-commit hooks
+uv run ruff check .                  # lint
+uv run ruff format .                 # format
+uv run mypy .                        # type check
+uv run pytest                        # run the test suite
+uv run pytest -k test_name           # run a single test by name
+uv run pytest tests/test_ubl.py      # run a single test file
+uv run pre-commit run --all-files    # run all pre-commit hooks
 ```
 
-Pre-commit hooks (Ruff + MyPy) are installed via `pre-commit install`. Coverage is enforced at ≥ 80% via `--cov-fail-under=80` in `pyproject.toml` (currently ~99%).
+Dependencies are declared in `pyproject.toml` under `[project]` (runtime) and `[dependency-groups]` (dev). `uv.lock` pins exact versions for reproducible installs. Update the lock with `uv lock --upgrade` or pick a single package with `uv lock --upgrade-package <name>`.
+
+Pre-commit hooks (Ruff + MyPy) are installed via `uv run pre-commit install`. Coverage is enforced at ≥ 80% via `--cov-fail-under=80` in `pyproject.toml` (currently ~99%).
 
 ## Limitations
 

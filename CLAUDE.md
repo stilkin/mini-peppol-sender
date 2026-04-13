@@ -8,44 +8,46 @@ Peppol Sender is a minimal Python scaffold for generating UBL 2.1 invoices from 
 
 ## Commands
 
+Dependencies are managed with `uv` (declared in `pyproject.toml`, pinned in
+`uv.lock`). Prefix every command with `uv run` or activate the venv first
+(`. .venv/bin/activate`).
+
 ```bash
 # Setup
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements-dev.txt   # includes runtime + dev deps
+uv sync                               # creates .venv, installs runtime + dev deps
 
 # Copy and fill in environment variables
 cp .env.example .env
 
 # Generate UBL XML from invoice JSON
-python cli.py create --input sample_invoice.json --out invoice.xml
+uv run python cli.py create --input sample_invoice.json --out invoice.xml
 
 # Validate an invoice XML
-python cli.py validate --file invoice.xml
+uv run python cli.py validate --file invoice.xml
 
 # Send invoice to Peppyrus API
-python cli.py send --file invoice.xml --recipient <RECIPIENT_ID>
+uv run python cli.py send --file invoice.xml --recipient <RECIPIENT_ID>
 
 # Fetch validation/transmission report for a sent message
-python cli.py report --id <MESSAGE_ID>
+uv run python cli.py report --id <MESSAGE_ID>
 
 # Run the web UI (http://127.0.0.1:5000)
-python webapp/app.py
+uv run python webapp/app.py
 
 # Lint and format
-ruff check .          # lint (add --fix for auto-fix)
-ruff format .         # format
+uv run ruff check .          # lint (add --fix for auto-fix)
+uv run ruff format .         # format
 
 # Type checking
-mypy .
+uv run mypy .
 
 # Tests
-pytest                    # run all tests
-pytest -k test_name       # run a single test by name
-pytest tests/test_ubl.py  # run a single test file
+uv run pytest                    # run all tests
+uv run pytest -k test_name       # run a single test by name
+uv run pytest tests/test_ubl.py  # run a single test file
 
-# Pre-commit hooks (ruff + mypy, installed via `pre-commit install`)
-pre-commit run --all-files
+# Pre-commit hooks (ruff + mypy, installed via `uv run pre-commit install`)
+uv run pre-commit run --all-files
 ```
 
 ## Architecture
@@ -72,5 +74,5 @@ The project follows a functional pipeline: **JSON → UBL XML → Validation →
 ## Reference
 
 - Peppyrus OpenAPI spec: `docs/openapi_peppyrus.json`
-- Development plan and roadmap: `docs/development_plan.md`
+- Invoice JSON schema reference: `docs/invoice-json-schema.md`
 - Test endpoint: `https://api.test.peppyrus.be/v1`

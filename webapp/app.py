@@ -8,28 +8,20 @@ browser persists customer/template/defaults state.
 from __future__ import annotations
 
 import os
-import sys
-from pathlib import Path
 from typing import Any
 
-# Allow `python webapp/app.py` from the project root by ensuring the project
-# root is on sys.path before importing peppol_sender.
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
+from dotenv import load_dotenv
+from flask import Flask, jsonify, render_template, request
 
-from dotenv import load_dotenv  # noqa: E402
-from flask import Flask, jsonify, render_template, request  # noqa: E402
-
-from peppol_sender.api import (  # noqa: E402
+from peppol_sender.api import (
     get_org_info,
     lookup_participant,
     package_message,
     search_business_card,
     send_message,
 )
-from peppol_sender.ubl import generate_ubl  # noqa: E402
-from peppol_sender.validator import validate_basic, validate_xsd  # noqa: E402
+from peppol_sender.ubl import generate_ubl
+from peppol_sender.validator import validate_basic, validate_xsd
 
 load_dotenv()
 
