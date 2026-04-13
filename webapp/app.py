@@ -25,6 +25,7 @@ from peppol_sender.api import (  # noqa: E402
     get_org_info,
     lookup_participant,
     package_message,
+    search_business_card,
     send_message,
 )
 from peppol_sender.ubl import generate_ubl  # noqa: E402
@@ -82,6 +83,19 @@ def api_lookup() -> tuple[Any, int]:
     if not vat_number or not country_code:
         return jsonify({"error": "vatNumber and countryCode are required"}), 400
     resp = lookup_participant(vat_number, country_code, api_key, base_url)
+    return jsonify(resp["json"]), resp["status_code"]
+
+
+@app.route("/api/business-card")
+def api_business_card() -> tuple[Any, int]:
+    creds = _creds()
+    if creds is None:
+        return _missing_credentials_response()
+    api_key, _, base_url = creds
+    participant_id = request.args.get("participantId", "")
+    if not participant_id:
+        return jsonify({"error": "participantId is required"}), 400
+    resp = search_business_card(participant_id, api_key, base_url)
     return jsonify(resp["json"]), resp["status_code"]
 
 

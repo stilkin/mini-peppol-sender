@@ -354,6 +354,8 @@ select#template-select {
 .col-num { text-align: right; }
 .col-num input { text-align: right; }
 .col-actions { width: 30px; text-align: right; }
+.col-unit { width: 70px; }
+.col-cat  { width: 168px; }
 
 .line-items input,
 .line-items select {

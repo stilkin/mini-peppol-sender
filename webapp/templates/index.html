@@ -49,8 +49,8 @@
           <div class="control-group lookup-group">
             <label class="micro">Look up by VAT</label>
             <div class="lookup-row">
-              <input type="text" id="lookup-vat" placeholder="0123456789" autocomplete="off">
-              <input type="text" id="lookup-country" placeholder="BE" maxlength="2" autocomplete="off">
+              <input type="text" id="lookup-country" value="BE" maxlength="2" autocomplete="off" aria-label="Country code">
+              <input type="text" id="lookup-vat" placeholder="0123456789" autocomplete="off" aria-label="VAT number">
               <button type="button" id="lookup-btn">Look up</button>
             </div>
           </div>
@@ -139,7 +139,7 @@
               <th class="col-num">Qty</th>
               <th class="col-unit">Unit</th>
               <th class="col-num">Unit price</th>
-              <th class="col-cat">VAT</th>
+              <th class="col-cat">VAT cat.</th>
               <th class="col-num">%</th>
               <th class="col-num">Line total</th>
               <th class="col-actions"></th>
@@ -149,6 +149,25 @@
             <!-- rows added by JS -->
           </tbody>
         </table>
+
+        <datalist id="unit-codes">
+          <option value="EA">each</option>
+          <option value="HUR">hour</option>
+          <option value="DAY">day</option>
+          <option value="WEE">week</option>
+          <option value="MON">month</option>
+          <option value="ANN">year</option>
+          <option value="C62">piece</option>
+          <option value="KGM">kilogram</option>
+          <option value="GRM">gram</option>
+          <option value="LTR">litre</option>
+          <option value="MTR">metre</option>
+          <option value="MTK">square metre</option>
+          <option value="MTQ">cubic metre</option>
+          <option value="KMT">kilometre</option>
+          <option value="KWH">kilowatt-hour</option>
+          <option value="MIN">minute</option>
+        </datalist>
 
         <div class="line-actions">
           <button type="button" id="add-line-btn" class="link-btn">+ Add line</button>

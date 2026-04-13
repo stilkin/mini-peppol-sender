@@ -8,6 +8,7 @@ from peppol_sender.api import (
     get_report,
     lookup_participant,
     package_message,
+    search_business_card,
     send_message,
 )
 
@@ -145,6 +146,24 @@ def test_lookup_participant(mock_session_fn: MagicMock) -> None:
     call_kwargs = mock_session.get.call_args
     assert call_kwargs.kwargs["params"]["vatNumber"] == "0123456789"
     assert call_kwargs.kwargs["params"]["countryCode"] == "BE"
+
+
+@patch("peppol_sender.api._session")
+def test_search_business_card(mock_session_fn: MagicMock) -> None:
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = [
+        {"entities": [{"name": [{"name": "POCITO"}], "countryCode": "BE"}]},
+    ]
+    mock_session = MagicMock()
+    mock_session.get.return_value = mock_resp
+    mock_session_fn.return_value = mock_session
+
+    result = search_business_card("0208:be0674415660", "api-key")
+    assert result["status_code"] == 200
+    assert result["json"][0]["entities"][0]["countryCode"] == "BE"
+    call_kwargs = mock_session.get.call_args
+    assert call_kwargs.kwargs["params"]["participantId"] == "0208:be0674415660"
 
 
 def test_session_has_retry_adapter() -> None:

@@ -97,3 +97,19 @@ def lookup_participant(
     params = {"vatNumber": vat_number, "countryCode": country_code}
     resp = _session().get(url, headers={"X-Api-Key": api_key}, params=params, timeout=30)
     return _parse_response(resp)
+
+
+def search_business_card(
+    participant_id: str,
+    api_key: str,
+    base_url: str = "https://api.test.peppyrus.be/v1",
+) -> dict[str, Any]:
+    """GET /peppol/search?participantId=... — fetch the PEPPOL directory business card."""
+    url = base_url.rstrip("/") + "/peppol/search"
+    resp = _session().get(
+        url,
+        headers={"X-Api-Key": api_key},
+        params={"participantId": participant_id},
+        timeout=30,
+    )
+    return _parse_response(resp)

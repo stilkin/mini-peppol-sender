@@ -28,7 +28,7 @@ def client_no_creds(monkeypatch: pytest.MonkeyPatch) -> Iterator[FlaskClient]:
         yield c
 
 
-def _mock_session(method: str, status: int, json_payload: dict) -> MagicMock:
+def _mock_session(method: str, status: int, json_payload: object) -> MagicMock:
     """Build a mock session whose .get() or .post() returns the given response."""
     mock_resp = MagicMock()
     mock_resp.status_code = status
@@ -91,6 +91,27 @@ def test_lookup_missing_params(client: FlaskClient) -> None:
     resp = client.get("/api/lookup")
     assert resp.status_code == 400
     assert "required" in resp.get_json()["error"]
+
+
+# ---------- /api/business-card ----------
+
+
+@patch("peppol_sender.api._session")
+def test_business_card_success(mock_session_fn: MagicMock, client: FlaskClient) -> None:
+    mock_session_fn.return_value = _mock_session(
+        "get",
+        200,
+        [{"entities": [{"name": [{"name": "POCITO"}], "countryCode": "BE"}]}],
+    )
+    resp = client.get("/api/business-card?participantId=0208:be0674415660")
+    assert resp.status_code == 200
+    cards = resp.get_json()
+    assert cards[0]["entities"][0]["name"][0]["name"] == "POCITO"
+
+
+def test_business_card_missing_param(client: FlaskClient) -> None:
+    resp = client.get("/api/business-card")
+    assert resp.status_code == 400
 
 
 # ---------- /api/validate ----------

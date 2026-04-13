@@ -20,7 +20,18 @@ const DEFAULT_DEFAULTS = {
   tax_percent: 0,
 };
 
-const TAX_CATEGORIES = ["S", "E", "O", "Z", "AE", "K", "G", "L", "M"];
+// UBL VAT category codes (D.16B). Visible label = "code — meaning".
+const TAX_CATEGORIES = [
+  ["S",  "S — Standard rate"],
+  ["E",  "E — Exempt"],
+  ["O",  "O — Outside scope"],
+  ["Z",  "Z — Zero rated"],
+  ["AE", "AE — Reverse charge"],
+  ["K",  "K — Intra-EU"],
+  ["G",  "G — Export"],
+  ["L",  "L — Canary Is. (IGIC)"],
+  ["M",  "M — Ceuta/Melilla"],
+];
 
 // ---------- Tiny helpers ----------
 
@@ -171,29 +182,97 @@ function getBuyer() {
   return buyer;
 }
 
+// Strip whitespace, dots, dashes; remove leading 2-letter country prefix; uppercase.
+function normalizeVat(input) {
+  return String(input || "")
+    .replace(/[\s./\-]/g, "")
+    .replace(/^[A-Za-z]{2}/, "")
+    .toUpperCase();
+}
+
+// Pick the first non-empty name from a Businesscard entity.
+function firstName(entity) {
+  if (!entity || !Array.isArray(entity.name)) return "";
+  for (const n of entity.name) if (n && n.name) return n.name;
+  return "";
+}
+
+// Find an identifier value by scheme name (case-insensitive).
+function findIdentifier(entity, scheme) {
+  if (!entity || !Array.isArray(entity.identifiers)) return "";
+  const hit = entity.identifiers.find(
+    (i) => (i.scheme || "").toUpperCase() === scheme.toUpperCase(),
+  );
+  return hit ? hit.value : "";
+}
+
 async function lookupBuyer() {
-  const vat = $("#lookup-vat").value.trim();
-  const country = $("#lookup-country").value.trim().toUpperCase();
+  const country = ($("#lookup-country").value || "BE").trim().toUpperCase();
+  const vat = normalizeVat($("#lookup-vat").value);
   if (!vat || !country) return;
+
+  // Reflect the cleaned value back so the user sees what we actually sent.
+  $("#lookup-vat").value = vat;
+
   const btn = $("#lookup-btn");
   btn.disabled = true;
   btn.textContent = "Looking up…";
+
   try {
-    const resp = await fetch(`/api/lookup?vatNumber=${encodeURIComponent(vat)}&countryCode=${encodeURIComponent(country)}`);
-    const data = await resp.json();
-    if (!resp.ok) throw new Error(data.error || "HTTP " + resp.status);
-    const participantId = data.participantId || "";
-    const [scheme, id] = participantId.includes(":") ? participantId.split(":") : ["0208", vat];
+    // 1. Resolve VAT → participantId
+    const lookupResp = await fetch(
+      `/api/lookup?vatNumber=${encodeURIComponent(vat)}&countryCode=${encodeURIComponent(country)}`,
+    );
+    const lookupData = await lookupResp.json();
+    if (!lookupResp.ok) throw new Error(lookupData.error || "HTTP " + lookupResp.status);
+
+    const participantId = lookupData.participantId || "";
+    const [scheme, id] = participantId.includes(":")
+      ? participantId.split(":")
+      : ["0208", vat];
+
     const buyer = getBuyer();
     buyer.vat = country + vat;
     buyer.country = country;
     buyer.endpoint_id = id;
     buyer.endpoint_scheme = scheme;
+
+    // 2. Try to enrich with Businesscard data (name, country, geo)
+    let enriched = false;
+    if (participantId) {
+      try {
+        const bcResp = await fetch(
+          `/api/business-card?participantId=${encodeURIComponent(participantId)}`,
+        );
+        if (bcResp.ok) {
+          const bcData = await bcResp.json();
+          const cards = Array.isArray(bcData) ? bcData : [];
+          const entity = cards[0] && cards[0].entities && cards[0].entities[0];
+          if (entity) {
+            const name = firstName(entity);
+            if (name) {
+              if (!buyer.name) buyer.name = name;
+              if (!buyer.registration_name) buyer.registration_name = name;
+            }
+            if (entity.countryCode && !buyer.country) {
+              buyer.country = entity.countryCode.toUpperCase();
+            }
+            const vatId = findIdentifier(entity, "VAT");
+            if (vatId && !buyer.vat) buyer.vat = vatId;
+            enriched = true;
+          }
+        }
+      } catch (e) { /* enrichment is best-effort */ }
+    }
+
     setBuyer(buyer);
+    const canReceive =
+      lookupData.services && lookupData.services.length ? "(can receive invoices)" : "";
+    const enrichNote = enriched ? " · directory data filled in" : "";
     showResult({
       kind: "success",
       title: "Lookup successful",
-      summary: `Participant <strong>${participantId}</strong> ${data.services && data.services.length ? "(can receive invoices)" : ""}`,
+      summary: `Participant <strong>${participantId}</strong> ${canReceive}${enrichNote}`,
     });
   } catch (err) {
     showResult({ kind: "error", title: "Lookup failed", summary: String(err.message || err) });
@@ -211,11 +290,11 @@ function makeLineRow(line = {}) {
   tr.innerHTML = `
     <td class="col-desc"><input type="text" data-line="description" placeholder="Item description"></td>
     <td class="col-num"><input type="number" data-line="quantity" class="mono" min="0" step="0.01" value="1"></td>
-    <td class="col-unit"><input type="text" data-line="unit" class="mono" value="EA" maxlength="3"></td>
+    <td class="col-unit"><input type="text" data-line="unit" class="mono" list="unit-codes" value="EA" maxlength="6"></td>
     <td class="col-num"><input type="number" data-line="unit_price" class="mono" min="0" step="0.01" value="0.00"></td>
     <td class="col-cat">
       <select data-line="tax_category">
-        ${TAX_CATEGORIES.map((c) => `<option value="${c}">${c}</option>`).join("")}
+        ${TAX_CATEGORIES.map(([code, label]) => `<option value="${code}">${label}</option>`).join("")}
       </select>
     </td>
     <td class="col-num"><input type="number" data-line="tax_percent" class="mono" min="0" step="1" value="0"></td>
