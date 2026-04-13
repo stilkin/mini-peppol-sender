@@ -104,16 +104,25 @@ function nextInvoiceNumber() {
 
 function loadCustomers() { return lsGet(LS_KEYS.customers, []); }
 
+// Stable key so edits to a known customer overwrite instead of creating dupes.
+// Prefers endpoint_scheme:endpoint_id (the participant ID), falls back to VAT,
+// then name.
+function customerKey(buyer) {
+  if (buyer.endpoint_id) {
+    return `EP:${buyer.endpoint_scheme || "0208"}:${buyer.endpoint_id}`;
+  }
+  if (buyer.vat) return `VAT:${buyer.vat}`;
+  if (buyer.name) return `NAME:${buyer.name}`;
+  return null;
+}
+
 function saveCustomer(buyer) {
-  if (!buyer.name && !buyer.endpoint_id) return;
+  const key = customerKey(buyer);
+  if (!key) return;
   const customers = loadCustomers();
-  const key = (buyer.endpoint_id || "") + "|" + (buyer.name || "");
-  const existing = customers.findIndex(
-    (c) => (c.endpoint_id || "") + "|" + (c.name || "") === key,
-  );
+  const existing = customers.findIndex((c) => customerKey(c) === key);
   if (existing >= 0) customers.splice(existing, 1);
   customers.unshift(buyer);
-  // Keep last 50
   lsSet(LS_KEYS.customers, customers.slice(0, 50));
 }
 
@@ -320,32 +329,52 @@ async function lookupBuyer() {
 // ---------- Line items ----------
 
 function makeLineRow(line = {}) {
-  const tr = document.createElement("tr");
-  tr.className = "line-row";
-  tr.innerHTML = `
-    <td class="col-desc"><input type="text" data-line="description" placeholder="Item description"></td>
-    <td class="col-num"><input type="number" data-line="quantity" class="mono" min="0" step="0.01" value="1"></td>
-    <td class="col-unit">
-      <select data-line="unit" class="mono">
-        ${UNIT_CODES.map(([code, label]) => `<option value="${code}">${label}</option>`).join("")}
-      </select>
-    </td>
-    <td class="col-num"><input type="number" data-line="unit_price" class="mono" min="0" step="0.01" value="0.00"></td>
-    <td class="col-cat">
-      <select data-line="tax_category">
-        ${TAX_CATEGORIES.map(([code, label]) => `<option value="${code}">${label}</option>`).join("")}
-      </select>
-    </td>
-    <td class="col-num"><input type="number" data-line="tax_percent" class="mono" min="0" step="1" value="0"></td>
-    <td class="col-num line-total-cell">0.00</td>
-    <td class="col-actions">
-      <button type="button" class="remove-line" title="Remove line">×</button>
-    </td>
+  const row = document.createElement("div");
+  row.className = "line-row";
+  row.innerHTML = `
+    <div class="line-desc-wrap">
+      <input type="text" data-line="description" placeholder="Item description" class="line-desc-input">
+      <div class="line-row-actions">
+        <button type="button" class="save-tpl-btn" title="Save as template" aria-label="Save as template">★</button>
+        <button type="button" class="remove-line" title="Remove line" aria-label="Remove line">×</button>
+      </div>
+    </div>
+    <div class="line-fields">
+      <div class="field-cell">
+        <span class="micro">qty</span>
+        <input type="number" data-line="quantity" class="mono" min="0" step="0.01" value="1">
+      </div>
+      <div class="field-cell">
+        <span class="micro">unit</span>
+        <select data-line="unit" class="mono">
+          ${UNIT_CODES.map(([code, label]) => `<option value="${code}">${label}</option>`).join("")}
+        </select>
+      </div>
+      <div class="field-cell">
+        <span class="micro">unit price</span>
+        <input type="number" data-line="unit_price" class="mono" min="0" step="0.01" value="0.00">
+      </div>
+      <div class="field-cell">
+        <span class="micro">vat cat.</span>
+        <select data-line="tax_category">
+          ${TAX_CATEGORIES.map(([code, label]) => `<option value="${code}">${label}</option>`).join("")}
+        </select>
+      </div>
+      <div class="field-cell">
+        <span class="micro">vat %</span>
+        <input type="number" data-line="tax_percent" class="mono" min="0" step="1" value="0">
+      </div>
+      <div class="field-cell">
+        <span class="micro">line total</span>
+        <span class="line-total-cell mono">0.00</span>
+      </div>
+    </div>
   `;
-  // Populate from line object. Coerce unknown unit codes to EA so a stale
-  // template can never cause BR-CL-23 to fail.
+
+  // Populate from line object. Coerce unknown unit codes to EA so stale
+  // templates can never trigger BR-CL-23.
   Object.entries(line).forEach(([k, v]) => {
-    const el = tr.querySelector(`[data-line="${k}"]`);
+    const el = row.querySelector(`[data-line="${k}"]`);
     if (!el) return;
     if (k === "unit") {
       el.value = UNIT_CODE_SET.has(v) ? v : "EA";
@@ -353,34 +382,61 @@ function makeLineRow(line = {}) {
       el.value = v;
     }
   });
-  // Apply defaults if line is empty
+
+  // Apply defaults to the tax category/percent when creating a blank line
   if (Object.keys(line).length === 0) {
     const d = getDefaults();
-    tr.querySelector('[data-line="tax_category"]').value = d.tax_category;
-    tr.querySelector('[data-line="tax_percent"]').value = d.tax_percent;
+    row.querySelector('[data-line="tax_category"]').value = d.tax_category;
+    row.querySelector('[data-line="tax_percent"]').value = d.tax_percent;
   }
-  // Wire events
-  tr.querySelectorAll("input, select").forEach((el) => {
+
+  // Recalculate on any input change
+  row.querySelectorAll("input, select").forEach((el) => {
     el.addEventListener("input", recalcTotals);
   });
-  tr.querySelector(".remove-line").addEventListener("click", () => {
-    if ($$(".line-row").length > 1) tr.remove();
-    else clearLineRow(tr);
+
+  // Remove button — clear the row if it's the only one.
+  row.querySelector(".remove-line").addEventListener("click", () => {
+    if ($$(".line-row").length > 1) row.remove();
+    else clearLineRow(row);
     recalcTotals();
   });
-  return tr;
+
+  // Save-as-template button — stores the current row in localStorage.
+  row.querySelector(".save-tpl-btn").addEventListener("click", () => {
+    const data = readLine(row);
+    if (!data.description) {
+      showResult({
+        kind: "error",
+        title: "Cannot save template",
+        summary: "Enter a description first.",
+      });
+      return;
+    }
+    saveTemplate(data);
+    renderTemplateDropdown();
+    const btn = row.querySelector(".save-tpl-btn");
+    btn.classList.add("saved");
+    btn.title = "Template saved";
+    setTimeout(() => {
+      btn.classList.remove("saved");
+      btn.title = "Save as template";
+    }, 1500);
+  });
+
+  return row;
 }
 
-function clearLineRow(tr) {
-  tr.querySelectorAll("input").forEach((el) => {
+function clearLineRow(row) {
+  row.querySelectorAll("input").forEach((el) => {
     if (el.dataset.line === "quantity") el.value = "1";
     else if (el.dataset.line === "unit_price") el.value = "0.00";
     else if (el.dataset.line === "tax_percent") el.value = "0";
     else el.value = "";
   });
-  tr.querySelector('[data-line="unit"]').value = "EA";
-  tr.querySelector('[data-line="tax_category"]').value = "E";
-  tr.querySelector(".line-total-cell").textContent = "0.00";
+  row.querySelector('[data-line="unit"]').value = "EA";
+  row.querySelector('[data-line="tax_category"]').value = "E";
+  row.querySelector(".line-total-cell").textContent = "0.00";
 }
 
 function readLine(tr) {
@@ -423,15 +479,19 @@ function collectInvoice() {
   }).filter((l) => l.description || l.unit_price);
 
   const buyer = getBuyer();
+  // Safety net: country codes must be uppercase (BR-CL-14).
+  if (buyer.country) buyer.country = buyer.country.toUpperCase();
+
   // The seller may have been filled from Peppyrus; fall back to cache.
-  const seller = sellerCache || {};
+  const seller = { ...(sellerCache || {}) };
+  if (seller.country) seller.country = seller.country.toUpperCase();
 
   return {
     invoice_number: $("#invoice_number").value,
     issue_date: $("#issue_date").value,
     due_date: $("#due_date").value || undefined,
     invoice_type_code: "380",
-    currency: $("#currency").value || "EUR",
+    currency: ($("#currency").value || "EUR").toUpperCase(),
     payment_terms: $("#payment_terms").value || undefined,
     seller,
     buyer,
@@ -602,6 +662,15 @@ function applyDefaultsToForm() {
 // ---------- Initialization ----------
 
 function init() {
+  // Uppercase-as-you-type for ISO code fields (country, currency, tax category).
+  $$("[data-uppercase]").forEach((el) => {
+    el.addEventListener("input", () => {
+      const caret = el.selectionStart;
+      el.value = el.value.toUpperCase();
+      if (caret !== null) el.setSelectionRange(caret, caret);
+    });
+  });
+
   // Populate header form fields
   $("#invoice_number").value = nextInvoiceNumber();
   $("#issue_date").value = todayISO();

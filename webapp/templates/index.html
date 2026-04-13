@@ -49,7 +49,7 @@
           <div class="control-group lookup-group">
             <label class="micro">Look up by VAT</label>
             <div class="lookup-row">
-              <input type="text" id="lookup-country" value="BE" maxlength="2" autocomplete="off" aria-label="Country code">
+              <input type="text" id="lookup-country" value="BE" maxlength="2" autocomplete="off" aria-label="Country code" data-uppercase>
               <input type="text" id="lookup-vat" placeholder="0123456789" autocomplete="off" aria-label="VAT number">
               <button type="button" id="lookup-btn">Look up</button>
             </div>
@@ -79,7 +79,7 @@
           </label>
           <label class="field">
             <span class="micro">Country</span>
-            <input type="text" data-buyer="country" class="mono" placeholder="BE" maxlength="2">
+            <input type="text" data-buyer="country" class="mono" placeholder="BE" maxlength="2" data-uppercase>
           </label>
           <label class="field span-2">
             <span class="micro">Street</span>
@@ -117,7 +117,7 @@
           </label>
           <label class="field">
             <span class="micro">Currency</span>
-            <input type="text" id="currency" class="mono" value="EUR" maxlength="3">
+            <input type="text" id="currency" class="mono" value="EUR" maxlength="3" data-uppercase>
           </label>
           <label class="field span-2">
             <span class="micro">Payment terms</span>
@@ -132,23 +132,9 @@
       <section class="doc-section section-lines">
         <div class="section-label"><span class="num">iv.</span> Items</div>
 
-        <table class="line-items">
-          <thead>
-            <tr>
-              <th class="col-desc">Description</th>
-              <th class="col-num">Qty</th>
-              <th class="col-unit">Unit</th>
-              <th class="col-num">Unit price</th>
-              <th class="col-cat">VAT cat.</th>
-              <th class="col-num">%</th>
-              <th class="col-num">Line total</th>
-              <th class="col-actions"></th>
-            </tr>
-          </thead>
-          <tbody id="line-items-body">
-            <!-- rows added by JS -->
-          </tbody>
-        </table>
+        <div class="line-items" id="line-items-body">
+          <!-- rows added by JS -->
+        </div>
 
         <div class="line-actions">
           <button type="button" id="add-line-btn" class="link-btn">+ Add line</button>
@@ -208,7 +194,7 @@
 
       <label class="field">
         <span class="micro">Currency</span>
-        <input type="text" id="default-currency" class="mono" maxlength="3">
+        <input type="text" id="default-currency" class="mono" maxlength="3" data-uppercase>
       </label>
       <label class="field">
         <span class="micro">Payment terms</span>
@@ -220,7 +206,7 @@
       </label>
       <label class="field">
         <span class="micro">Default tax category</span>
-        <input type="text" id="default-tax-category" class="mono" maxlength="2" placeholder="E">
+        <input type="text" id="default-tax-category" class="mono" maxlength="2" placeholder="E" data-uppercase>
       </label>
       <label class="field">
         <span class="micro">Default tax %</span>
