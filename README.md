@@ -51,6 +51,17 @@ The `send` command runs validation first and refuses to transmit if any FATAL ru
 python cli.py report --id <MESSAGE_ID>
 ```
 
+## Web UI
+
+A minimal Flask web form is available for users who'd rather click than edit JSON:
+
+```bash
+python webapp/app.py
+# open http://127.0.0.1:5000
+```
+
+The form auto-fills your seller details from `/organization/info`, looks up buyers by VAT number via `/peppol/bestMatch`, calculates totals live, and validates locally before sending. Recent customers, line item templates, defaults, and the last invoice number are persisted in browser localStorage — no server-side database. Your Peppyrus API key never leaves the server.
+
 ## Invoice JSON format
 
 See `sample_invoice.json` for a complete example. The expected structure:

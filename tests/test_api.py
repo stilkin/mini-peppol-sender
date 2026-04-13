@@ -3,7 +3,13 @@
 import base64
 from unittest.mock import MagicMock, patch
 
-from peppol_sender.api import get_report, package_message, send_message
+from peppol_sender.api import (
+    get_org_info,
+    get_report,
+    lookup_participant,
+    package_message,
+    send_message,
+)
 
 SAMPLE_XML = b"<Invoice>test</Invoice>"
 
@@ -106,6 +112,39 @@ def test_get_report_success(mock_session_fn: MagicMock) -> None:
 
     actual_url = mock_session.get.call_args[0][0]
     assert actual_url.endswith("/message/msg-123/report")
+
+
+@patch("peppol_sender.api._session")
+def test_get_org_info(mock_session_fn: MagicMock) -> None:
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"name": "POCITO", "VAT": "BE0674415660"}
+    mock_session = MagicMock()
+    mock_session.get.return_value = mock_resp
+    mock_session_fn.return_value = mock_session
+
+    result = get_org_info("api-key")
+    assert result["status_code"] == 200
+    assert result["json"]["name"] == "POCITO"
+    actual_url = mock_session.get.call_args[0][0]
+    assert actual_url.endswith("/organization/info")
+
+
+@patch("peppol_sender.api._session")
+def test_lookup_participant(mock_session_fn: MagicMock) -> None:
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"participantId": "0208:be0123456789"}
+    mock_session = MagicMock()
+    mock_session.get.return_value = mock_resp
+    mock_session_fn.return_value = mock_session
+
+    result = lookup_participant("0123456789", "BE", "api-key")
+    assert result["status_code"] == 200
+    assert result["json"]["participantId"] == "0208:be0123456789"
+    call_kwargs = mock_session.get.call_args
+    assert call_kwargs.kwargs["params"]["vatNumber"] == "0123456789"
+    assert call_kwargs.kwargs["params"]["countryCode"] == "BE"
 
 
 def test_session_has_retry_adapter() -> None:

@@ -77,3 +77,23 @@ def get_report(message_id: str, api_key: str, base_url: str = "https://api.test.
     headers = {"X-Api-Key": api_key}
     resp = _session().get(url, headers=headers, timeout=30)
     return _parse_response(resp)
+
+
+def get_org_info(api_key: str, base_url: str = "https://api.test.peppyrus.be/v1") -> dict[str, Any]:
+    """GET /organization/info — fetch the authenticated organization's details."""
+    url = base_url.rstrip("/") + "/organization/info"
+    resp = _session().get(url, headers={"X-Api-Key": api_key}, timeout=30)
+    return _parse_response(resp)
+
+
+def lookup_participant(
+    vat_number: str,
+    country_code: str,
+    api_key: str,
+    base_url: str = "https://api.test.peppyrus.be/v1",
+) -> dict[str, Any]:
+    """GET /peppol/bestMatch — find a PEPPOL participant by VAT number + country."""
+    url = base_url.rstrip("/") + "/peppol/bestMatch"
+    params = {"vatNumber": vat_number, "countryCode": country_code}
+    resp = _session().get(url, headers={"X-Api-Key": api_key}, params=params, timeout=30)
+    return _parse_response(resp)

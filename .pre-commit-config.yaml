@@ -11,3 +11,5 @@ repos:
       - id: mypy
         additional_dependencies:
           - types-requests>=2.28
+          - flask>=3.0
+          - xmlschema>=3.0

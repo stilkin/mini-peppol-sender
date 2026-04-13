@@ -1,3 +1,4 @@
 requests>=2.28
 python-dotenv>=1.0
 xmlschema>=3.0
+flask>=3.0
