@@ -33,6 +33,28 @@ const TAX_CATEGORIES = [
   ["M",  "M — Ceuta/Melilla"],
 ];
 
+// UN/ECE Rec 20 unit codes accepted by EN-16931 / PEPPOL BIS Billing 3.0.
+// Strict select — picking from this list guarantees BR-CL-23 compliance.
+const UNIT_CODES = [
+  ["EA",  "EA — each"],
+  ["C62", "C62 — piece"],
+  ["HUR", "HUR — hour"],
+  ["MIN", "MIN — minute"],
+  ["DAY", "DAY — day"],
+  ["WEE", "WEE — week"],
+  ["MON", "MON — month"],
+  ["ANN", "ANN — year"],
+  ["KGM", "KGM — kilogram"],
+  ["GRM", "GRM — gram"],
+  ["LTR", "LTR — litre"],
+  ["MTR", "MTR — metre"],
+  ["MTK", "MTK — square metre"],
+  ["MTQ", "MTQ — cubic metre"],
+  ["KMT", "KMT — kilometre"],
+  ["KWH", "KWH — kilowatt-hour"],
+];
+const UNIT_CODE_SET = new Set(UNIT_CODES.map(([c]) => c));
+
 // ---------- Tiny helpers ----------
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -303,7 +325,11 @@ function makeLineRow(line = {}) {
   tr.innerHTML = `
     <td class="col-desc"><input type="text" data-line="description" placeholder="Item description"></td>
     <td class="col-num"><input type="number" data-line="quantity" class="mono" min="0" step="0.01" value="1"></td>
-    <td class="col-unit"><input type="text" data-line="unit" class="mono" list="unit-codes" value="EA" maxlength="6"></td>
+    <td class="col-unit">
+      <select data-line="unit" class="mono">
+        ${UNIT_CODES.map(([code, label]) => `<option value="${code}">${label}</option>`).join("")}
+      </select>
+    </td>
     <td class="col-num"><input type="number" data-line="unit_price" class="mono" min="0" step="0.01" value="0.00"></td>
     <td class="col-cat">
       <select data-line="tax_category">
@@ -316,10 +342,16 @@ function makeLineRow(line = {}) {
       <button type="button" class="remove-line" title="Remove line">×</button>
     </td>
   `;
-  // Populate from line object
+  // Populate from line object. Coerce unknown unit codes to EA so a stale
+  // template can never cause BR-CL-23 to fail.
   Object.entries(line).forEach(([k, v]) => {
     const el = tr.querySelector(`[data-line="${k}"]`);
-    if (el) el.value = v;
+    if (!el) return;
+    if (k === "unit") {
+      el.value = UNIT_CODE_SET.has(v) ? v : "EA";
+    } else {
+      el.value = v;
+    }
   });
   // Apply defaults if line is empty
   if (Object.keys(line).length === 0) {
@@ -342,11 +374,11 @@ function makeLineRow(line = {}) {
 function clearLineRow(tr) {
   tr.querySelectorAll("input").forEach((el) => {
     if (el.dataset.line === "quantity") el.value = "1";
-    else if (el.dataset.line === "unit") el.value = "EA";
     else if (el.dataset.line === "unit_price") el.value = "0.00";
     else if (el.dataset.line === "tax_percent") el.value = "0";
     else el.value = "";
   });
+  tr.querySelector('[data-line="unit"]').value = "EA";
   tr.querySelector('[data-line="tax_category"]').value = "E";
   tr.querySelector(".line-total-cell").textContent = "0.00";
 }
