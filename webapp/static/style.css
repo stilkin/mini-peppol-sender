@@ -731,8 +731,8 @@ select#template-select {
   border: 1px solid var(--ink);
   background: var(--paper);
   padding: 0;
-  max-width: 480px;
-  width: calc(100vw - 64px);
+  max-width: 720px;
+  width: min(720px, calc(100vw - 64px));
   box-shadow:
     0 16px 40px -10px rgba(26, 24, 21, 0.4),
     0 32px 80px -20px rgba(26, 24, 21, 0.25);

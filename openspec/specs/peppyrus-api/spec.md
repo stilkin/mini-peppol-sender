@@ -1,8 +1,12 @@
 # Peppyrus API
 
 Client for the Peppyrus Access Point API. Handles packaging invoices into the
-required MessageBody format and transmitting them over HTTPS. API calls retry
+required MessageBody format and transmitting them over HTTPS. Idempotent GET
+helpers (report, org info, participant lookup, business card search) retry
 automatically on transient server errors (5xx) with exponential backoff.
+`POST /message` is intentionally **not** retried to avoid duplicate PEPPOL
+transmissions — POST is excluded from `urllib3.util.Retry`'s default
+`allowed_methods` set.
 
 ## ADDED Requirements
 
@@ -19,8 +23,8 @@ Peppyrus OpenAPI schema.
 ### Requirement: Send message to Peppyrus
 
 POSTs the packaged MessageBody to the Peppyrus `/message` endpoint with
-`X-Api-Key` authentication. The client MUST retry transient failures with
-exponential backoff.
+`X-Api-Key` authentication. The client MUST NOT retry failed POSTs to avoid
+duplicate PEPPOL transmissions.
 
 #### Scenario: Successful send
 
@@ -32,20 +36,16 @@ exponential backoff.
 - **WHEN** the API returns a non-JSON response body
 - **THEN** `json` contains `{"error_text": "<raw response text>"}`
 
-#### Scenario: Retry on server error
+#### Scenario: No retry for POST
 
-- **WHEN** `send_message()` receives a 5xx response or a network error
-- **THEN** the request is retried up to 3 times with exponential backoff (1s, 3s, 10s delays)
-
-#### Scenario: No retry on client error
-
-- **WHEN** `send_message()` receives a 4xx response
-- **THEN** no retry is attempted and the response is returned immediately
+- **WHEN** `send_message()` receives any failure (5xx, 4xx, or network error)
+- **THEN** the request is NOT retried and the response (or exception) is returned immediately, because retrying a POST could create duplicate PEPPOL invoices
 
 ### Requirement: Retrieve message report
 
 Fetches validation and transmission rules for a previously sent message via
-`GET /message/{id}/report`. The client MUST retry transient failures.
+`GET /message/{id}/report`. As an idempotent GET, the client MUST retry
+transient failures.
 
 #### Scenario: Fetch report
 
@@ -56,6 +56,38 @@ Fetches validation and transmission rules for a previously sent message via
 
 - **WHEN** `get_report()` receives a 5xx response or a network error
 - **THEN** the request is retried up to 3 times with exponential backoff
+
+### Requirement: Retrieve organization info
+
+Fetches the authenticated organization's details from `GET /organization/info`.
+The response includes name, address, VAT, and country — used by the webapp to
+auto-populate the seller card on page load.
+
+#### Scenario: Fetch organization info
+
+- **WHEN** `get_org_info()` is called with a valid API key
+- **THEN** a dict with `status_code` and `json` (organization details) is returned
+
+### Requirement: Look up PEPPOL participant
+
+Resolves a VAT number + country code to a PEPPOL participant identifier via
+`GET /peppol/bestMatch`. Used by the webapp's buyer lookup flow.
+
+#### Scenario: Look up by VAT number
+
+- **WHEN** `lookup_participant()` is called with a VAT number, country code, and API key
+- **THEN** a dict with `status_code` and `json` (participant ID and services) is returned
+
+### Requirement: Fetch business card
+
+Fetches the PEPPOL directory business card for a participant ID via
+`GET /peppol/search?participantId=...`. Used to enrich a looked-up buyer with
+directory data (name, country, geo info).
+
+#### Scenario: Fetch business card
+
+- **WHEN** `search_business_card()` is called with a participant ID and API key
+- **THEN** a dict with `status_code` and `json` (business card data) is returned
 
 ### Requirement: CLI send subcommand
 
