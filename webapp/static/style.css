@@ -585,7 +585,7 @@ select#template-select {
 }
 .link-btn:hover { border-bottom-color: var(--oxblood); }
 
-.template-loader { min-width: 220px; }
+.template-loader { width: 360px; }
 .template-loader select { width: 100%; }
 
 /* -------- Totals -------- */
