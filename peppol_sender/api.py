@@ -19,8 +19,15 @@ def _session() -> requests.Session:
     adapter = HTTPAdapter(max_retries=retry)
     session = requests.Session()
     session.mount("https://", adapter)
-    session.mount("http://", adapter)
     return session
+
+
+def _require_https(url: str) -> None:
+    """Refuse to send API traffic (with API key) over plaintext HTTP."""
+    if not url.startswith("https://"):
+        raise ValueError(
+            f"Refusing to send API requests over plain HTTP. PEPPYRUS_BASE_URL must be an https:// URL (got {url!r})."
+        )
 
 
 def _parse_response(resp: requests.Response) -> dict[str, Any]:
@@ -62,6 +69,7 @@ def send_message(
     base_url: str = "https://api.test.peppyrus.be/v1",
 ) -> dict[str, Any]:
     """POST MessageBody to Peppyrus and return parsed JSON response."""
+    _require_https(base_url)
     url = base_url.rstrip("/") + "/message"
     headers = {
         "Content-Type": "application/json",
@@ -73,6 +81,7 @@ def send_message(
 
 def get_report(message_id: str, api_key: str, base_url: str = "https://api.test.peppyrus.be/v1") -> dict[str, Any]:
     """GET /message/{id}/report and return parsed JSON on success."""
+    _require_https(base_url)
     url = base_url.rstrip("/") + f"/message/{message_id}/report"
     headers = {"X-Api-Key": api_key}
     resp = _session().get(url, headers=headers, timeout=30)
@@ -81,6 +90,7 @@ def get_report(message_id: str, api_key: str, base_url: str = "https://api.test.
 
 def get_org_info(api_key: str, base_url: str = "https://api.test.peppyrus.be/v1") -> dict[str, Any]:
     """GET /organization/info — fetch the authenticated organization's details."""
+    _require_https(base_url)
     url = base_url.rstrip("/") + "/organization/info"
     resp = _session().get(url, headers={"X-Api-Key": api_key}, timeout=30)
     return _parse_response(resp)
@@ -93,6 +103,7 @@ def lookup_participant(
     base_url: str = "https://api.test.peppyrus.be/v1",
 ) -> dict[str, Any]:
     """GET /peppol/bestMatch — find a PEPPOL participant by VAT number + country."""
+    _require_https(base_url)
     url = base_url.rstrip("/") + "/peppol/bestMatch"
     params = {"vatNumber": vat_number, "countryCode": country_code}
     resp = _session().get(url, headers={"X-Api-Key": api_key}, params=params, timeout=30)
@@ -105,6 +116,7 @@ def search_business_card(
     base_url: str = "https://api.test.peppyrus.be/v1",
 ) -> dict[str, Any]:
     """GET /peppol/search?participantId=... — fetch the PEPPOL directory business card."""
+    _require_https(base_url)
     url = base_url.rstrip("/") + "/peppol/search"
     resp = _session().get(
         url,
