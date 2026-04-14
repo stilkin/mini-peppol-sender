@@ -269,8 +269,8 @@ def test_preview_pdf_uses_invoice_number_as_filename(client: FlaskClient) -> Non
 
 @patch("peppol_sender.api._session")
 def test_send_flow_embeds_pdf_in_xml(mock_session_fn: MagicMock, client: FlaskClient) -> None:
-    """/api/send routes through _validate_invoice with embed_pdf=True, so the
-    sent XML must contain a cac:AdditionalDocumentReference block."""
+    """/api/send routes through _validate_invoice with embed_pdf=True by default,
+    so the sent XML must contain a cac:AdditionalDocumentReference block."""
     import base64
 
     mock_session_fn.return_value = _mock_session("post", 200, {"id": "msg-pdf-001"})
@@ -283,3 +283,30 @@ def test_send_flow_embeds_pdf_in_xml(mock_session_fn: MagicMock, client: FlaskCl
     xml = base64.b64decode(posted_kwargs["json"]["fileContent"]).decode("utf-8")
     assert "AdditionalDocumentReference" in xml
     assert "application/pdf" in xml
+
+
+@patch("peppol_sender.api._session")
+def test_send_flow_skips_pdf_when_embed_pdf_false(mock_session_fn: MagicMock, client: FlaskClient) -> None:
+    """?embed_pdf=false on /api/send skips PDF embedding."""
+    import base64
+
+    mock_session_fn.return_value = _mock_session("post", 200, {"id": "msg-no-pdf"})
+    resp = client.post(
+        "/api/send?embed_pdf=false",
+        json={"invoice": _VALID_INVOICE, "recipient": "0208:be0674415660"},
+    )
+    assert resp.status_code == 200
+    posted_kwargs = mock_session_fn.return_value.post.call_args.kwargs
+    xml = base64.b64decode(posted_kwargs["json"]["fileContent"]).decode("utf-8")
+    assert "AdditionalDocumentReference" not in xml
+
+
+def test_validate_embed_pdf_false_omits_pdf(client: FlaskClient) -> None:
+    """?embed_pdf=false on /api/validate skips PDF embedding — verified by the
+    absence of side effects (no raising when WeasyPrint isn't exercised)."""
+    # The validate route doesn't return the XML, so we assert it still returns
+    # 200 with an empty rules list (i.e. the skipped-PDF path doesn't break
+    # validation). This is a smoke check; the real observable is in /api/send.
+    resp = client.post("/api/validate?embed_pdf=false", json=_VALID_INVOICE)
+    assert resp.status_code == 200
+    assert resp.get_json()["rules"] == []

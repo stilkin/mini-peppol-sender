@@ -301,6 +301,30 @@ input[aria-invalid="true"] {
   color: var(--error);
 }
 
+/* -------- Checkbox field (Settings modal) -------- */
+.checkbox-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0 0 0;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.checkbox-field input[type="checkbox"] {
+  accent-color: var(--oxblood);
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+/* -------- Field row (Settings modal two-column pairs) -------- */
+.settings-form .field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
 /* -------- Bill-to controls -------- */
 .bill-to-controls {
   display: grid;

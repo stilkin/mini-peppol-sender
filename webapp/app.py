@@ -93,8 +93,13 @@ def api_business_card() -> tuple[Any, int]:
     return jsonify(resp["json"]), resp["status_code"]
 
 
-def _validate_invoice(invoice: dict[str, Any]) -> tuple[bytes, list[dict]]:
-    xml = generate_ubl(invoice, embed_pdf=True)
+def _read_embed_pdf_flag() -> bool:
+    """Read ?embed_pdf=true|false from the query string. Defaults to True."""
+    return request.args.get("embed_pdf", "true").lower() != "false"
+
+
+def _validate_invoice(invoice: dict[str, Any], *, embed_pdf: bool = True) -> tuple[bytes, list[dict]]:
+    xml = generate_ubl(invoice, embed_pdf=embed_pdf)
     rules = validate_basic(xml) + validate_xsd(xml)
     return xml, rules
 
@@ -118,7 +123,7 @@ def api_preview_pdf() -> Any:
 @app.route("/api/validate", methods=["POST"])
 def api_validate() -> tuple[Any, int]:
     invoice = request.get_json(silent=True) or {}
-    _, rules = _validate_invoice(invoice)
+    _, rules = _validate_invoice(invoice, embed_pdf=_read_embed_pdf_flag())
     return jsonify({"rules": rules}), 200
 
 
@@ -137,7 +142,7 @@ def api_send() -> tuple[Any, int]:
     if not recipient:
         return jsonify({"error": "recipient is required"}), 400
 
-    xml, rules = _validate_invoice(invoice)
+    xml, rules = _validate_invoice(invoice, embed_pdf=_read_embed_pdf_flag())
     fatal = [r for r in rules if r["type"] == "FATAL"]
     if fatal:
         return jsonify({"rules": rules, "error": "Validation failed"}), 422

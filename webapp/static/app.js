@@ -12,6 +12,7 @@ const LS_KEYS = {
   lastNumber: "peppol_last_invoice_number",
   sellerContact: "peppol_seller_contact",
   sellerBank: "peppol_seller_bank",
+  embedPdf: "peppol_embed_pdf",
 };
 
 const DEFAULT_DEFAULTS = {
@@ -107,6 +108,17 @@ function getSellerBank() {
 
 function saveSellerBank(bank) {
   lsSet(LS_KEYS.sellerBank, bank);
+}
+
+// ---------- PDF embedding toggle (local-only) ----------
+// Defaults to true on first run: a sent invoice should carry a visual.
+
+function getEmbedPdf() {
+  return lsGet(LS_KEYS.embedPdf, true);
+}
+
+function saveEmbedPdf(value) {
+  lsSet(LS_KEYS.embedPdf, Boolean(value));
 }
 
 // ---------- Invoice number ----------
@@ -629,7 +641,7 @@ async function doValidate() {
   const invoice = collectInvoice();
   setBusy("#validate-btn", "Validating…");
   try {
-    const resp = await fetch("/api/validate", {
+    const resp = await fetch(`/api/validate?embed_pdf=${getEmbedPdf()}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(invoice),
@@ -652,7 +664,7 @@ async function doSend() {
   }
   setBusy("#send-btn", "Sending…");
   try {
-    const resp = await fetch("/api/send", {
+    const resp = await fetch(`/api/send?embed_pdf=${getEmbedPdf()}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ invoice, recipient }),
@@ -767,6 +779,7 @@ function openSettings() {
   $("#seller-iban").value = bank.iban || "";
   $("#seller-bic").value = bank.bic || "";
   $("#seller-account-name").value = bank.account_name || "";
+  $("#embed-pdf-toggle").checked = getEmbedPdf();
   const contact = getSellerContact();
   $("#seller-contact-name").value = contact.name || "";
   $("#seller-contact-email").value = contact.email || "";
@@ -787,6 +800,7 @@ function saveSettingsFromModal() {
     bic: $("#seller-bic").value.trim(),
     account_name: $("#seller-account-name").value.trim(),
   });
+  saveEmbedPdf($("#embed-pdf-toggle").checked);
   saveSellerContact({
     name: $("#seller-contact-name").value,
     email: $("#seller-contact-email").value,
@@ -824,6 +838,11 @@ function init() {
       if (caret !== null) el.setSelectionRange(caret, caret);
     });
   });
+
+  // Populate the settings-modal tax category select from the shared constant.
+  $("#default-tax-category").innerHTML = TAX_CATEGORIES
+    .map(([code, label]) => `<option value="${code}">${label}</option>`)
+    .join("");
 
   // Populate header form fields
   $("#invoice_number").value = nextInvoiceNumber();
