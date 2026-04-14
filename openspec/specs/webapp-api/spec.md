@@ -29,10 +29,10 @@ The Flask backend MUST proxy PEPPOL participant lookups.
 - **WHEN** the frontend requests `/api/lookup?vatNumber=...&countryCode=...`
 - **THEN** the backend calls Peppyrus `/peppol/bestMatch` and returns the participant details as JSON
 
-#### Scenario: GET /api/search by name
+#### Scenario: GET /api/business-card by participant ID
 
-- **WHEN** the frontend requests `/api/search?name=...&country=...`
-- **THEN** the backend calls Peppyrus `/peppol/search` and returns matching business cards as JSON
+- **WHEN** the frontend requests `/api/business-card?participantId=...`
+- **THEN** the backend calls Peppyrus `/peppol/search?participantId=...` and returns the matching business card data as JSON
 
 ### Requirement: Validate and send invoice
 

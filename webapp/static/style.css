@@ -310,7 +310,7 @@ button { font-family: inherit; }
 .lookup-row { display: flex; gap: 10px; align-items: flex-end; }
 
 .lookup-row input { flex: 1; }
-.lookup-row input:nth-child(2) { flex: 0 0 60px; text-align: center; text-transform: uppercase; }
+.lookup-row #lookup-country { flex: 0 0 60px; text-align: center; text-transform: uppercase; }
 
 .lookup-row button {
   font-family: var(--body);

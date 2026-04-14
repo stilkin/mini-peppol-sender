@@ -85,7 +85,7 @@ uv run python cli.py send --file invoice.xml --recipient 0208:be0674415660
 uv run python cli.py report --id <MESSAGE_ID>
 ```
 
-The `send` command runs validation first and refuses to transmit if any FATAL rules are triggered. API calls retry automatically on 5xx errors with exponential backoff.
+The `send` command runs validation first and refuses to transmit if any FATAL rules are triggered. Idempotent API calls (report, lookup) retry automatically on 5xx errors with exponential backoff; the actual `POST /message` is **not** retried to avoid duplicate transmissions.
 
 See [`docs/invoice-json-schema.md`](docs/invoice-json-schema.md) for the full JSON input format.
 

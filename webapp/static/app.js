@@ -182,7 +182,10 @@ async function loadSeller() {
     const resp = await fetch("/api/org-info");
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     const info = await resp.json();
-    const isBelgium = (info.country || "").toLowerCase().startsWith("belg");
+    // Peppyrus currently returns the full country name ("Belgium"), but be
+    // defensive in case they ever switch to ISO codes ("BE").
+    const countryRaw = (info.country || "").trim().toLowerCase();
+    const isBelgium = countryRaw === "be" || countryRaw.startsWith("belg");
     const enterpriseNumber = (info.VAT || "").replace(/^[A-Za-z]{2}/, "");
     const contact = getSellerContact();
     sellerCache = {
@@ -355,10 +358,10 @@ async function lookupBuyer() {
     showResult({
       kind: "success",
       title: "Lookup successful",
-      summary: `Participant <strong>${participantId}</strong> ${canReceive}${enrichNote}`,
+      summary: `Participant <strong>${escape(participantId)}</strong> ${canReceive}${enrichNote}`,
     });
   } catch (err) {
-    showResult({ kind: "error", title: "Lookup failed", summary: String(err.message || err) });
+    showResult({ kind: "error", title: "Lookup failed", summary: escape(String(err.message || err)) });
   } finally {
     btn.disabled = false;
     btn.textContent = "Look up";
@@ -405,7 +408,7 @@ function makeLineRow(line = {}) {
       </div>
       <div class="field-cell">
         <span class="micro">vat %</span>
-        <input type="number" data-line="tax_percent" class="mono" min="0" step="1" value="0">
+        <input type="number" data-line="tax_percent" class="mono" min="0" step="any" value="0">
       </div>
       <div class="field-cell">
         <span class="micro">line total</span>
@@ -566,7 +569,7 @@ async function doValidate() {
     const data = await resp.json();
     renderRules(data.rules || []);
   } catch (err) {
-    showResult({ kind: "error", title: "Validation failed", summary: String(err) });
+    showResult({ kind: "error", title: "Validation failed", summary: escape(String(err)) });
   } finally {
     clearBusy("#validate-btn", "Validate");
   }
@@ -592,7 +595,11 @@ async function doSend() {
       return;
     }
     if (!resp.ok) {
-      showResult({ kind: "error", title: `HTTP ${resp.status}`, summary: JSON.stringify(data.response || data, null, 2) });
+      showResult({
+        kind: "error",
+        title: `HTTP ${resp.status}`,
+        summary: escape(JSON.stringify(data.response || data, null, 2)),
+      });
       return;
     }
     const r = data.response || {};
@@ -600,7 +607,7 @@ async function doSend() {
     showResult({
       kind: "success",
       title: "Invoice sent",
-      summary: `Message ID <strong>${msgId}</strong> · Folder <strong>${r.folder || "—"}</strong>`,
+      summary: `Message ID <strong>${escape(msgId)}</strong> · Folder <strong>${escape(r.folder || "—")}</strong>`,
     });
     // On success: persist customer + advance invoice number
     saveCustomer(invoice.buyer);
@@ -608,7 +615,7 @@ async function doSend() {
     lsSet(LS_KEYS.lastNumber, invoice.invoice_number);
     $("#invoice_number").value = nextInvoiceNumber();
   } catch (err) {
-    showResult({ kind: "error", title: "Send failed", summary: String(err) });
+    showResult({ kind: "error", title: "Send failed", summary: escape(String(err)) });
   } finally {
     clearBusy("#send-btn", "Send invoice");
   }

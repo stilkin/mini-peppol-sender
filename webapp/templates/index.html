@@ -4,9 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Peppol — Invoice Composer</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,700&family=Spectral:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='fonts.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -43,7 +41,7 @@
         <div class="bill-to-controls">
           <div class="control-group">
             <label class="micro">Recent</label>
-            <select id="recent-customers">
+            <select id="recent-customers" aria-label="Recent customers">
               <option value="">— select customer —</option>
             </select>
           </div>
@@ -152,7 +150,7 @@
         <div class="line-actions">
           <button type="button" id="add-line-btn" class="link-btn">+ Add line</button>
           <div class="template-loader">
-            <select id="template-select">
+            <select id="template-select" aria-label="Load line item template">
               <option value="">— load template —</option>
             </select>
           </div>
@@ -194,7 +192,7 @@
       </section>
 
       <!-- ============== RESULT ============== -->
-      <section id="result-panel" class="result-panel" hidden></section>
+      <section id="result-panel" class="result-panel" role="status" aria-live="polite" aria-atomic="true" hidden></section>
 
     </article>
   </main>
@@ -223,7 +221,7 @@
       </label>
       <label class="field">
         <span class="micro">Default tax %</span>
-        <input type="number" id="default-tax-percent" class="mono" min="0" step="1">
+        <input type="number" id="default-tax-percent" class="mono" min="0" step="any">
       </label>
 
       <h2 class="settings-subhead">Your contact info</h2>

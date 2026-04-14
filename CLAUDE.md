@@ -57,7 +57,7 @@ The project follows a functional pipeline: **JSON → UBL XML → Validation →
 - **`cli.py`** — CLI entry point with subcommands: `create`, `validate`, `send`, `report`
 - **`peppol_sender/ubl.py`** — `generate_ubl(invoice: dict) -> bytes` builds EN-16931 compliant UBL 2.1 XML with proper `cbc:`/`cac:` namespaces
 - **`peppol_sender/validator.py`** — `validate_basic()` checks required EN-16931 elements; `validate_xsd()` validates against UBL 2.1 XSD schemas in `schemas/`
-- **`peppol_sender/api.py`** — Peppyrus API client with retry (3 attempts, exponential backoff on 5xx): `package_message()`, `send_message()`, `get_report()`, `get_org_info()`, `lookup_participant()`
+- **`peppol_sender/api.py`** — Peppyrus API client. Idempotent GET helpers retry transient 5xx failures (3 attempts, exponential backoff via `urllib3.Retry`); `send_message()` POSTs are intentionally **not** retried to avoid duplicate PEPPOL transmissions (POST is not in `urllib3`'s default `allowed_methods`). Functions: `package_message()`, `send_message()`, `get_report()`, `get_org_info()`, `lookup_participant()`, `search_business_card()`
 - **`webapp/`** — Flask single-page invoice form. `app.py` exposes `/`, `/api/org-info`, `/api/lookup`, `/api/validate`, `/api/send`. Templates in `templates/`, vanilla JS + CSS in `static/`. State (recent customers, line templates, defaults, last invoice number) lives in browser localStorage.
 
 ## Key Design Decisions
