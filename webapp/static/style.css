@@ -318,11 +318,11 @@ input[aria-invalid="true"] {
   cursor: pointer;
 }
 
-/* -------- Field row (Settings modal two-column pairs) -------- */
-.settings-form .field-row {
+/* -------- Field row (generic two-column pairs) -------- */
+.field-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  gap: 24px;
 }
 
 /* -------- Bill-to controls -------- */
@@ -337,10 +337,24 @@ input[aria-invalid="true"] {
 
 .control-group { display: flex; flex-direction: column; gap: 4px; }
 
-.lookup-row { display: flex; gap: 10px; align-items: flex-end; }
+.lookup-row { display: flex; gap: 14px; align-items: flex-end; }
 
-.lookup-row input { flex: 1; }
-.lookup-row #lookup-country { flex: 0 0 60px; text-align: center; text-transform: uppercase; }
+.lookup-row input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--body);
+  font-size: 15px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--rule);
+  padding: 6px 0 7px;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 180ms ease;
+}
+.lookup-row input:focus { border-bottom-color: var(--oxblood); }
+.lookup-row #lookup-country { flex: 0 0 52px; text-align: center; text-transform: uppercase; font-family: var(--mono); }
+.lookup-row #lookup-vat { font-family: var(--mono); }
 
 .lookup-row button {
   font-family: var(--body);
@@ -376,8 +390,7 @@ select#template-select {
   padding-right: 20px;
 }
 
-/* -------- Party grid -------- */
-.party-grid,
+/* -------- Meta grid (invoice details section) -------- */
 .meta-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -386,6 +399,28 @@ select#template-select {
 
 .span-2 { grid-column: span 2; }
 .span-4 { grid-column: span 4; }
+
+/* -------- Bill to clusters (Address | Legal & PEPPOL, Contact below) -------- */
+.party-clusters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px 32px;
+  margin-bottom: 28px;
+}
+
+.party-cluster {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.party-contact {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-top: 24px;
+  border-top: 1px dotted var(--rule);
+}
 
 /* -------- Line items (two-row cards) -------- */
 .line-items {
@@ -610,13 +645,22 @@ select#template-select {
 
 /* -------- Action bar -------- */
 .section-actions {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 32px;
-  align-items: end;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
 }
 
-.recipient-field { max-width: 380px; }
+.send-hint {
+  margin: 0;
+  font-family: var(--body);
+  font-size: 13px;
+  font-style: italic;
+  color: var(--ink-mid);
+}
+
+.send-hint.ready { color: var(--oxblood); }
+.send-hint.error { color: var(--error); }
 
 .button-row {
   display: flex;
@@ -814,12 +858,13 @@ select#template-select {
 /* -------- Responsive -------- */
 @media (max-width: 720px) {
   .invoice-doc { padding: 40px 24px 56px; }
-  .party-grid,
   .meta-grid { grid-template-columns: 1fr 1fr; }
   .span-2 { grid-column: span 2; }
   .bill-to-controls { grid-template-columns: 1fr; }
-  .section-actions { grid-template-columns: 1fr; }
+  .party-clusters { grid-template-columns: 1fr; }
+  .section-actions { align-items: stretch; }
   .button-row { justify-content: flex-start; }
+  .send-hint { text-align: left; }
   .totals-list { width: 100%; }
   .line-fields {
     grid-template-columns: 1fr 1fr;

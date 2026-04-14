@@ -267,10 +267,6 @@ function setBuyer(buyer) {
     const key = input.dataset.buyer;
     input.value = buyer[key] ?? "";
   });
-  // Derive recipient participant ID from endpoint fields when both are present.
-  if (buyer.endpoint_scheme && buyer.endpoint_id) {
-    $("#recipient").value = `${buyer.endpoint_scheme}:${buyer.endpoint_id}`;
-  }
 }
 
 function getBuyer() {
@@ -608,6 +604,20 @@ function collectInvoice() {
   };
 }
 
+// ---------- Send gate ----------
+// Send stays disabled until the user has run Validate at least once with no
+// FATAL rules. Subsequent edits do NOT re-disable — the server still catches
+// any regression via its own validate_basic + validate_xsd pass on /api/send.
+
+function setSendGate(state, message) {
+  const btn = $("#send-btn");
+  const hint = $("#send-hint");
+  btn.disabled = state !== "ready";
+  hint.textContent = message;
+  hint.classList.toggle("ready", state === "ready");
+  hint.classList.toggle("error", state === "error");
+}
+
 // ---------- Preview / Validate / Send ----------
 
 async function doPreviewPdf() {
@@ -647,19 +657,37 @@ async function doValidate() {
       body: JSON.stringify(invoice),
     });
     const data = await resp.json();
-    renderRules(data.rules || []);
+    const rules = data.rules || [];
+    renderRules(rules);
+    const fatal = rules.filter((r) => r.type === "FATAL");
+    if (fatal.length === 0) {
+      setSendGate("ready", "Ready to send");
+    } else {
+      setSendGate("error", `Fix ${fatal.length} FATAL rule${fatal.length === 1 ? "" : "s"}, then validate again`);
+    }
   } catch (err) {
     showResult({ kind: "error", title: "Validation failed", summary: escape(String(err)) });
+    setSendGate("error", "Validation request failed — try again");
   } finally {
     clearBusy("#validate-btn", "Validate");
   }
 }
 
+function deriveRecipient(buyer) {
+  const scheme = (buyer.endpoint_scheme || "").trim();
+  const id = (buyer.endpoint_id || "").trim();
+  return scheme && id ? `${scheme}:${id}` : "";
+}
+
 async function doSend() {
   const invoice = collectInvoice();
-  const recipient = $("#recipient").value.trim();
+  const recipient = deriveRecipient(invoice.buyer || {});
   if (!recipient) {
-    showResult({ kind: "error", title: "Missing recipient", summary: "Enter a participant ID before sending." });
+    showResult({
+      kind: "error",
+      title: "Missing buyer endpoint",
+      summary: "Set the buyer's Scheme and Endpoint ID before sending.",
+    });
     return;
   }
   setBusy("#send-btn", "Sending…");
@@ -900,6 +928,9 @@ function init() {
   $("#preview-btn").addEventListener("click", doPreviewPdf);
   $("#validate-btn").addEventListener("click", doValidate);
   $("#send-btn").addEventListener("click", doSend);
+
+  // Send stays disabled until the user has validated successfully at least once.
+  setSendGate("initial", "Click Validate first");
 
   // Settings modal
   $("#settings-btn").addEventListener("click", openSettings);

@@ -55,52 +55,66 @@
           </div>
         </div>
 
-        <div class="party-grid">
-          <label class="field span-2">
-            <span class="micro">Company</span>
-            <input type="text" data-buyer="name" placeholder="Acme Trading SA">
-          </label>
-          <label class="field span-2">
-            <span class="micro">Legal registration name</span>
-            <input type="text" data-buyer="registration_name" placeholder="Acme Trading SA">
-          </label>
+        <div class="party-clusters">
+          <div class="party-cluster">
+            <label class="field">
+              <span class="micro">Company</span>
+              <input type="text" data-buyer="name" placeholder="Acme Trading SA">
+            </label>
+            <label class="field">
+              <span class="micro">Street</span>
+              <input type="text" data-buyer="street">
+            </label>
+            <div class="field-row">
+              <label class="field">
+                <span class="micro">Postal code</span>
+                <input type="text" data-buyer="postal_code" class="mono">
+              </label>
+              <label class="field">
+                <span class="micro">City</span>
+                <input type="text" data-buyer="city">
+              </label>
+            </div>
+            <label class="field">
+              <span class="micro">Country</span>
+              <input type="text" data-buyer="country" class="mono" placeholder="BE" maxlength="2" data-uppercase>
+            </label>
+          </div>
+
+          <div class="party-cluster">
+            <label class="field">
+              <span class="micro">Legal registration name</span>
+              <input type="text" data-buyer="registration_name" placeholder="Acme Trading SA">
+            </label>
+            <div class="field-row">
+              <label class="field">
+                <span class="micro">Scheme</span>
+                <input type="text" data-buyer="endpoint_scheme" class="mono" value="0208">
+              </label>
+              <label class="field">
+                <span class="micro">Endpoint ID</span>
+                <input type="text" data-buyer="endpoint_id" class="mono" placeholder="0123456789">
+              </label>
+            </div>
+            <label class="field">
+              <span class="micro">VAT</span>
+              <input type="text" data-buyer="vat" class="mono" placeholder="optional">
+            </label>
+          </div>
+        </div>
+
+        <div class="party-contact">
+          <div class="field-row">
+            <label class="field">
+              <span class="micro">Contact name (optional)</span>
+              <input type="text" data-buyer="contact_name">
+            </label>
+            <label class="field">
+              <span class="micro">Contact email (optional)</span>
+              <input type="email" data-buyer="contact_email">
+            </label>
+          </div>
           <label class="field">
-            <span class="micro">Endpoint ID</span>
-            <input type="text" data-buyer="endpoint_id" class="mono" placeholder="0123456789">
-          </label>
-          <label class="field">
-            <span class="micro">Scheme</span>
-            <input type="text" data-buyer="endpoint_scheme" class="mono" value="0208">
-          </label>
-          <label class="field">
-            <span class="micro">VAT</span>
-            <input type="text" data-buyer="vat" class="mono" placeholder="optional">
-          </label>
-          <label class="field">
-            <span class="micro">Country</span>
-            <input type="text" data-buyer="country" class="mono" placeholder="BE" maxlength="2" data-uppercase>
-          </label>
-          <label class="field span-2">
-            <span class="micro">Street</span>
-            <input type="text" data-buyer="street">
-          </label>
-          <label class="field">
-            <span class="micro">City</span>
-            <input type="text" data-buyer="city">
-          </label>
-          <label class="field">
-            <span class="micro">Postal code</span>
-            <input type="text" data-buyer="postal_code" class="mono">
-          </label>
-          <label class="field span-2">
-            <span class="micro">Contact name (optional)</span>
-            <input type="text" data-buyer="contact_name">
-          </label>
-          <label class="field span-2">
-            <span class="micro">Contact email (optional)</span>
-            <input type="email" data-buyer="contact_email">
-          </label>
-          <label class="field span-2">
             <span class="micro">Contact phone (optional)</span>
             <input type="tel" data-buyer="contact_phone" class="mono">
           </label>
@@ -181,15 +195,12 @@
 
       <!-- ============== ACTIONS ============== -->
       <section class="doc-section section-actions">
-        <label class="field recipient-field">
-          <span class="micro">Send to participant</span>
-          <input type="text" id="recipient" class="mono" placeholder="0208:be0123456789">
-        </label>
         <div class="button-row">
-          <button type="button" id="preview-btn" class="btn btn-secondary">Preview PDF</button>
           <button type="button" id="validate-btn" class="btn btn-secondary">Validate</button>
-          <button type="button" id="send-btn" class="btn btn-primary">Send invoice</button>
+          <button type="button" id="preview-btn" class="btn btn-secondary">Preview PDF</button>
+          <button type="button" id="send-btn" class="btn btn-primary" disabled>Send invoice</button>
         </div>
+        <p id="send-hint" class="send-hint">Click Validate first</p>
       </section>
 
       <!-- ============== RESULT ============== -->
