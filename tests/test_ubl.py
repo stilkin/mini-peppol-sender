@@ -553,3 +553,53 @@ def test_payment_means_before_payment_terms() -> None:
     pt_idx = tags.index("PaymentTerms")
     cust_idx = tags.index("AccountingCustomerParty")
     assert cust_idx < pm_idx < pt_idx
+
+
+# --- Embedded PDF visual representation (R008) ---
+
+
+def test_embed_pdf_false_is_default() -> None:
+    root = _parse(SAMPLE_INVOICE)
+    assert root.find(f"{{{CAC}}}AdditionalDocumentReference") is None
+
+
+def test_embed_pdf_true_emits_additional_document_reference() -> None:
+    xml = generate_ubl(SAMPLE_INVOICE, embed_pdf=True)
+    root = ET.fromstring(xml)
+    adrs = root.findall(f"{{{CAC}}}AdditionalDocumentReference")
+    assert len(adrs) == 1
+    adr = adrs[0]
+    assert adr.find(f"{{{CBC}}}ID").text == "INV-TEST-001"  # type: ignore[union-attr]
+    assert adr.find(f"{{{CBC}}}DocumentDescription").text == "Commercial Invoice"  # type: ignore[union-attr]
+    attachment = adr.find(f"{{{CAC}}}Attachment")
+    assert attachment is not None
+    blob = attachment.find(f"{{{CBC}}}EmbeddedDocumentBinaryObject")
+    assert blob is not None
+    assert blob.get("mimeCode") == "application/pdf"
+    assert blob.get("filename") == "INV-TEST-001.pdf"
+    # Decode base64 and confirm it is a real PDF
+    import base64
+
+    assert blob.text is not None
+    decoded = base64.b64decode(blob.text)
+    assert decoded.startswith(b"%PDF-")
+
+
+def test_embed_pdf_position_in_xs_sequence() -> None:
+    """AdditionalDocumentReference MUST sit between BuyerReference and AccountingSupplierParty."""
+    xml = generate_ubl(SAMPLE_INVOICE, embed_pdf=True)
+    root = ET.fromstring(xml)
+    tags = [c.tag.split("}")[-1] for c in root]
+    br_idx = tags.index("BuyerReference")
+    adr_idx = tags.index("AdditionalDocumentReference")
+    sup_idx = tags.index("AccountingSupplierParty")
+    assert br_idx < adr_idx < sup_idx
+
+
+def test_embed_pdf_passes_xsd() -> None:
+    """The embed path must produce XML that still passes UBL 2.1 XSD validation."""
+    from peppol_sender.validator import validate_xsd
+
+    xml = generate_ubl(SAMPLE_INVOICE, embed_pdf=True)
+    rules = validate_xsd(xml)
+    assert rules == []

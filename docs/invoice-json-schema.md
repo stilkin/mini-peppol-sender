@@ -149,6 +149,10 @@ If `payment_means` is omitted entirely, no `cac:PaymentMeans` element is emitted
 and BR-50 does not fire — use this for invoices paid by other means (cash,
 direct debit) where structured bank details are not relevant.
 
+## PDF rendering
+
+The same invoice JSON feeds the PDF renderer (`peppol_sender.pdf.render_pdf`) as well as the UBL generator. The CLI `create` subcommand and the webapp's `/api/validate`/`/api/send` routes embed the rendered PDF inside the UBL XML as a `cac:AdditionalDocumentReference` (PEPPOL BIS Billing 3.0 rule R008 "visual representation"). Pass `--no-pdf` to `cli.py create` for XML-only output. No new JSON fields are required — the PDF is derived entirely from the fields documented above.
+
 ## Notes
 
 - All optional fields can be omitted entirely — they are simply not emitted in the XML.

@@ -25,7 +25,7 @@ load_dotenv()
 def cmd_create(args: argparse.Namespace) -> None:
     with open(args.input, encoding="utf-8") as f:
         data = json.load(f)
-    xml = generate_ubl(data)
+    xml = generate_ubl(data, embed_pdf=args.embed_pdf)
     with open(args.out, "wb") as f:
         f.write(xml)
     print(f"Generated UBL invoice: {args.out}")
@@ -110,6 +110,13 @@ def main() -> None:
     c = sub.add_parser("create")
     c.add_argument("--input", default="sample_invoice.json")
     c.add_argument("--out", default="invoice.xml")
+    c.add_argument(
+        "--no-pdf",
+        dest="embed_pdf",
+        action="store_false",
+        default=True,
+        help="Do not embed a rendered PDF visual representation (default: embed)",
+    )
     c.set_defaults(func=cmd_create)
 
     v = sub.add_parser("validate")

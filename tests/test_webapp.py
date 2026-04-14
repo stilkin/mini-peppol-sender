@@ -247,3 +247,39 @@ def test_send_routes_payment_means_through(mock_session_fn: MagicMock, client: F
     assert "PayeeFinancialAccount" in xml
     assert "BE68539007547034" in xml
     assert "BBRUBEBB" in xml
+
+
+# ---------- /api/preview-pdf ----------
+
+
+def test_preview_pdf_returns_pdf(client: FlaskClient) -> None:
+    resp = client.post("/api/preview-pdf", json=_VALID_INVOICE)
+    assert resp.status_code == 200
+    assert resp.mimetype == "application/pdf"
+    assert resp.data.startswith(b"%PDF-")
+    assert len(resp.data) > 1000
+
+
+def test_preview_pdf_uses_invoice_number_as_filename(client: FlaskClient) -> None:
+    resp = client.post("/api/preview-pdf", json=_VALID_INVOICE)
+    assert resp.status_code == 200
+    disposition = resp.headers.get("Content-Disposition", "")
+    assert "INV-001.pdf" in disposition
+
+
+@patch("peppol_sender.api._session")
+def test_send_flow_embeds_pdf_in_xml(mock_session_fn: MagicMock, client: FlaskClient) -> None:
+    """/api/send routes through _validate_invoice with embed_pdf=True, so the
+    sent XML must contain a cac:AdditionalDocumentReference block."""
+    import base64
+
+    mock_session_fn.return_value = _mock_session("post", 200, {"id": "msg-pdf-001"})
+    resp = client.post(
+        "/api/send",
+        json={"invoice": _VALID_INVOICE, "recipient": "0208:be0674415660"},
+    )
+    assert resp.status_code == 200
+    posted_kwargs = mock_session_fn.return_value.post.call_args.kwargs
+    xml = base64.b64decode(posted_kwargs["json"]["fileContent"]).decode("utf-8")
+    assert "AdditionalDocumentReference" in xml
+    assert "application/pdf" in xml

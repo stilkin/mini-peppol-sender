@@ -4,6 +4,7 @@ Generates PEPPOL BIS Billing 3.0 compliant UBL 2.1 Invoice XML from a JSON-like
 invoice data structure. Supports VAT-exempt businesses (tax category E/O).
 """
 
+import base64
 from collections import defaultdict
 from datetime import date
 from decimal import Decimal
@@ -127,6 +128,31 @@ def _add_tax_total(inv: ET.Element, lines: list[dict], currency: str) -> Decimal
     return total_tax
 
 
+def _add_additional_document_reference(
+    inv: ET.Element,
+    pdf_bytes: bytes,
+    document_id: str,
+    description: str = "Commercial Invoice",
+) -> None:
+    """Embed a visual representation (PDF) as cac:AdditionalDocumentReference.
+
+    PEPPOL BIS Billing 3.0 rule R008 allows exactly one visual per invoice,
+    restricted to a short list of MIME types. We emit application/pdf.
+    """
+    adr = _sub(inv, "cac", "AdditionalDocumentReference")
+    _sub(adr, "cbc", "ID", document_id)
+    _sub(adr, "cbc", "DocumentDescription", description)
+    attachment = _sub(adr, "cac", "Attachment")
+    _sub(
+        attachment,
+        "cbc",
+        "EmbeddedDocumentBinaryObject",
+        base64.b64encode(pdf_bytes).decode("ascii"),
+        mimeCode="application/pdf",
+        filename=f"{document_id}.pdf",
+    )
+
+
 def _add_payment_means(inv: ET.Element, invoice: dict, seller_name: str) -> None:
     """Add cac:PaymentMeans with credit-transfer code and PayeeFinancialAccount.
 
@@ -206,11 +232,16 @@ def _add_invoice_line(inv: ET.Element, line: dict, currency: str) -> Decimal:
     return ext_amt
 
 
-def generate_ubl(invoice: dict) -> bytes:
+def generate_ubl(invoice: dict, *, embed_pdf: bool = False) -> bytes:
     """Generate an EN-16931 compliant UBL 2.1 Invoice XML.
 
     invoice: dict with keys: invoice_number, issue_date, due_date, currency,
-             invoice_type_code, payment_terms, seller, buyer, lines
+             invoice_type_code, payment_terms, payment_means, seller, buyer, lines
+    embed_pdf: when True, render the invoice as a PDF and embed it as a
+               cac:AdditionalDocumentReference (PEPPOL BIS Billing 3.0 R008
+               visual representation). Defaults to False so existing callers
+               and the test suite remain fast and byte-stable; CLI and webapp
+               call sites pass True explicitly.
     Returns: bytes (UTF-8)
     """
     for prefix, uri in _NS.items():
@@ -229,6 +260,15 @@ def generate_ubl(invoice: dict) -> bytes:
     _sub(inv, "cbc", "InvoiceTypeCode", str(invoice.get("invoice_type_code", "380")))
     _sub(inv, "cbc", "DocumentCurrencyCode", currency)
     _sub(inv, "cbc", "BuyerReference", str(invoice.get("buyer_reference", invoice.get("invoice_number", "N/A"))))
+
+    # Visual representation — positioned before parties per UBL xs:sequence.
+    # Lazy import of render_pdf so that Pango/Cairo are only required when
+    # embedding is actually requested.
+    if embed_pdf:
+        from peppol_sender.pdf import render_pdf
+
+        document_id = str(invoice.get("invoice_number", "INV-0001"))
+        _add_additional_document_reference(inv, render_pdf(invoice), document_id)
 
     # Parties
     _add_party(inv, "AccountingSupplierParty", invoice.get("seller", {}), currency)

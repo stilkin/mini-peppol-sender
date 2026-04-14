@@ -596,7 +596,34 @@ function collectInvoice() {
   };
 }
 
-// ---------- Validate / Send ----------
+// ---------- Preview / Validate / Send ----------
+
+async function doPreviewPdf() {
+  const invoice = collectInvoice();
+  setBusy("#preview-btn", "Rendering…");
+  try {
+    const resp = await fetch("/api/preview-pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(invoice),
+    });
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      showResult({
+        kind: "error",
+        title: "Preview failed",
+        summary: escape(data.error || `HTTP ${resp.status}`),
+      });
+      return;
+    }
+    const blob = await resp.blob();
+    window.open(URL.createObjectURL(blob), "_blank");
+  } catch (err) {
+    showResult({ kind: "error", title: "Preview failed", summary: escape(String(err)) });
+  } finally {
+    clearBusy("#preview-btn", "Preview PDF");
+  }
+}
 
 async function doValidate() {
   const invoice = collectInvoice();
@@ -851,6 +878,7 @@ function init() {
   $("#lookup-vat").addEventListener("keydown", (e) => { if (e.key === "Enter") lookupBuyer(); });
 
   // Validate / Send
+  $("#preview-btn").addEventListener("click", doPreviewPdf);
   $("#validate-btn").addEventListener("click", doValidate);
   $("#send-btn").addEventListener("click", doSend);
 

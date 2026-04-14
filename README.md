@@ -5,6 +5,7 @@ A small tool for generating [EN-16931](https://peppol.org/what-is-peppol/peppol-
 ## What it does
 
 - **Create** EN-16931 compliant UBL 2.1 XML from a simple JSON input (or a web form)
+- **Render** a human-readable PDF "visual representation" of the invoice and embed it inside the UBL XML (PEPPOL BIS Billing 3.0 rule R008) so receivers' accountancy software has something to show end users
 - **Validate** the XML against the official UBL 2.1 XSD schemas
 - **Send** it to the PEPPOL network via Peppyrus, with automatic retry on transient failures
 - **Fetch reports** (validation + transmission rules) for sent messages
@@ -36,6 +37,25 @@ Requires Python 3.10 or newer. Install [uv](https://docs.astral.sh/uv/getting-st
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
+
+### System prerequisites (WeasyPrint)
+
+PDF rendering uses [WeasyPrint](https://weasyprint.org/), which needs Pango, Cairo, and libgdk-pixbuf at the OS level. Install them once with your package manager:
+
+```bash
+# Debian / Ubuntu
+sudo apt install libpango-1.0-0 libpangoft2-1.0-0 libcairo2 libgdk-pixbuf2.0-0
+
+# Fedora
+sudo dnf install pango cairo gdk-pixbuf2
+
+# macOS (Homebrew)
+brew install pango cairo gdk-pixbuf
+```
+
+Most modern desktop Linux distros already have these. If the libraries are missing, the library still imports and XML generation still works — only `render_pdf()` (and the CLI's default PDF embedding) will raise a clear `RuntimeError` pointing back to this section.
+
+### Python dependencies
 
 Then clone the repo and sync dependencies:
 
@@ -72,8 +92,11 @@ Prefix these with `uv run` (which transparently uses `.venv`), or activate the v
 ### Command-line
 
 ```bash
-# 1. Generate UBL XML from a JSON invoice
+# 1. Generate UBL XML from a JSON invoice (embeds a rendered PDF by default)
 uv run python cli.py create --input sample_invoice.json --out invoice.xml
+
+# 1b. XML-only output (skip the embedded PDF)
+uv run python cli.py create --input sample_invoice.json --out invoice.xml --no-pdf
 
 # 2. Validate it (structural checks + XSD)
 uv run python cli.py validate --file invoice.xml
@@ -105,6 +128,7 @@ Single-page invoice form with:
 - **Live totals** as you type; strict unit and VAT category dropdowns
 - **Auto-incrementing invoice number**
 - **Settings modal** for defaults (currency, payment terms, due-date offset, tax category), your **bank account** (IBAN, BIC, account holder — emitted as structured `cac:PaymentMeans` on every invoice to satisfy PEPPOL rule BR-50), and your personal contact info (name, email, phone)
+- **Preview PDF** button — see the human-readable representation that will be embedded in the invoice before you send it
 - **Validate before send** — FATAL rules block transmission and are shown inline
 - **Recipient auto-fill** from the buyer's PEPPOL endpoint when you look up or pick a recent customer
 

@@ -105,6 +105,26 @@ JSON invoice data structure, including all mandatory fields required by PEPPOL B
 - **WHEN** `payment_means.code` is a non-credit-transfer value (e.g. `"10"` for cash, `"20"` for cheque)
 - **THEN** `cac:PaymentMeans` is still emitted with the given code and with `PayeeFinancialAccount` populated only if an `iban` is supplied
 
+#### Scenario: Embed visual representation (PDF)
+
+- **WHEN** `generate_ubl()` is called with `embed_pdf=True` (the CLI and webapp default at their call sites)
+- **THEN** the generated XML contains exactly one `cac:AdditionalDocumentReference` positioned after `cbc:BuyerReference` and before `cac:AccountingSupplierParty`, containing `cbc:ID` (the invoice number), `cbc:DocumentDescription` (`"Commercial Invoice"`), and `cac:Attachment/cbc:EmbeddedDocumentBinaryObject` with `mimeCode="application/pdf"`, `filename="<invoice_number>.pdf"`, and base64-encoded PDF bytes as element text
+
+#### Scenario: Single visual representation per invoice
+
+- **WHEN** an invoice is generated with PDF embedding enabled
+- **THEN** exactly one `cac:AdditionalDocumentReference` with an embedded PDF is emitted (matching PEPPOL-EN16931-R008)
+
+#### Scenario: PDF embedding opt-out
+
+- **WHEN** `generate_ubl()` is called with `embed_pdf=False` (the library default)
+- **THEN** no `cac:AdditionalDocumentReference` element is emitted and the rest of the XML is unchanged
+
+#### Scenario: PDF totals match XML totals
+
+- **WHEN** an invoice is rendered and embedded
+- **THEN** the totals displayed in the PDF (subtotal, tax, grand total) match the XML's `LegalMonetaryTotal/PayableAmount` and `TaxTotal/TaxAmount` byte-for-byte, including for mixed-rate invoices (same tax-group Decimal rounding as `_add_tax_total`)
+
 ### Requirement: CLI create subcommand
 
 The `create` subcommand reads a JSON file and writes UBL XML to disk.

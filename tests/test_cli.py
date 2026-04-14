@@ -28,6 +28,23 @@ def test_create_produces_xml(tmp_path: Path) -> None:
     assert b"Invoice" in content
 
 
+def test_create_embeds_pdf_by_default(tmp_path: Path) -> None:
+    out_file = tmp_path / "invoice.xml"
+    result = _run("create", "--input", str(SAMPLE_JSON), "--out", str(out_file))
+    assert result.returncode == 0
+    content = out_file.read_bytes()
+    assert b"AdditionalDocumentReference" in content
+    assert b"application/pdf" in content
+
+
+def test_create_no_pdf_flag_omits_embedding(tmp_path: Path) -> None:
+    out_file = tmp_path / "invoice.xml"
+    result = _run("create", "--input", str(SAMPLE_JSON), "--out", str(out_file), "--no-pdf")
+    assert result.returncode == 0
+    content = out_file.read_bytes()
+    assert b"AdditionalDocumentReference" not in content
+
+
 def test_validate_ok(tmp_path: Path) -> None:
     out_file = tmp_path / "invoice.xml"
     _run("create", "--input", str(SAMPLE_JSON), "--out", str(out_file))

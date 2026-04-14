@@ -19,8 +19,11 @@ uv sync                               # creates .venv, installs runtime + dev de
 # Copy and fill in environment variables
 cp .env.example .env
 
-# Generate UBL XML from invoice JSON
+# Generate UBL XML from invoice JSON (embeds a rendered PDF by default)
 uv run python cli.py create --input sample_invoice.json --out invoice.xml
+
+# XML-only output (skip the embedded PDF)
+uv run python cli.py create --input sample_invoice.json --out invoice.xml --no-pdf
 
 # Validate an invoice XML
 uv run python cli.py validate --file invoice.xml
@@ -55,10 +58,11 @@ uv run pre-commit run --all-files
 The project follows a functional pipeline: **JSON → UBL XML → Validation → API transmission**.
 
 - **`cli.py`** — CLI entry point with subcommands: `create`, `validate`, `send`, `report`
-- **`peppol_sender/ubl.py`** — `generate_ubl(invoice: dict) -> bytes` builds EN-16931 compliant UBL 2.1 XML with proper `cbc:`/`cac:` namespaces
-- **`peppol_sender/validator.py`** — `validate_basic()` checks required EN-16931 elements; `validate_xsd()` validates against UBL 2.1 XSD schemas in `schemas/`
+- **`peppol_sender/ubl.py`** — `generate_ubl(invoice: dict, *, embed_pdf: bool = False) -> bytes` builds EN-16931 compliant UBL 2.1 XML with proper `cbc:`/`cac:` namespaces. When `embed_pdf=True`, renders a PDF via `peppol_sender.pdf` and embeds it as a `cac:AdditionalDocumentReference` (PEPPOL BIS Billing 3.0 R008 visual representation). Library default is `False` so the existing test suite stays fast and byte-stable; CLI `create` and webapp `/api/validate`+`/api/send` pass `embed_pdf=True` explicitly.
+- **`peppol_sender/pdf.py`** — `render_pdf(invoice: dict) -> bytes` renders a human-readable PDF using Jinja2 (`peppol_sender/templates/invoice.html`) + WeasyPrint. `_build_view_model()` pre-computes all display values (totals use the same tax-group Decimal rounding as `ubl.py` so the PDF and XML totals are byte-identical). WeasyPrint is lazy-imported so Pango/Cairo are only required at render time.
+- **`peppol_sender/validator.py`** — `validate_basic()` checks required EN-16931 elements and applies local BR-50 (IBAN required for credit transfer) and LOCAL-F001 (date format) rules; `validate_xsd()` validates against UBL 2.1 XSD schemas in `schemas/`
 - **`peppol_sender/api.py`** — Peppyrus API client. Idempotent GET helpers retry transient 5xx failures (3 attempts, exponential backoff via `urllib3.Retry`); `send_message()` POSTs are intentionally **not** retried to avoid duplicate PEPPOL transmissions (POST is not in `urllib3`'s default `allowed_methods`). Functions: `package_message()`, `send_message()`, `get_report()`, `get_org_info()`, `lookup_participant()`, `search_business_card()`
-- **`webapp/`** — Flask single-page invoice form. `app.py` exposes `/`, `/api/org-info`, `/api/lookup`, `/api/validate`, `/api/send`. Templates in `templates/`, vanilla JS + CSS in `static/`. State (recent customers, line templates, defaults, last invoice number) lives in browser localStorage.
+- **`webapp/`** — Flask single-page invoice form. `app.py` exposes `/`, `/api/org-info`, `/api/lookup`, `/api/validate`, `/api/send`, `/api/preview-pdf`. Templates in `templates/`, vanilla JS + CSS in `static/`. State (recent customers, line templates, defaults, last invoice number, seller bank account) lives in browser localStorage.
 
 ## Key Design Decisions
 
