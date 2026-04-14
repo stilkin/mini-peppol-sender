@@ -888,7 +888,7 @@ wheels = [
 ]
 
 [[package]]
-name = "peppol-sender"
+name = "peppify"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
