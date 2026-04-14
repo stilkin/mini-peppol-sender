@@ -15,6 +15,13 @@ See [`sample_invoice.json`](../sample_invoice.json) for a complete, working exam
   "invoice_type_code": "380",
   "currency": "EUR",
   "payment_terms": "Net 21 days",
+  "payment_means": {
+    "code": "30",
+    "iban": "BE68539007547034",
+    "bic": "BBRUBEBB",
+    "account_name": "ACME Consulting BV",
+    "payment_id": "INV-2025-001"
+  },
   "seller": {
     "name": "ACME Consulting",
     "registration_name": "ACME Consulting BV",
@@ -67,7 +74,8 @@ See [`sample_invoice.json`](../sample_invoice.json) for a complete, working exam
 | `due_date` | string | Payment due date (optional) |
 | `invoice_type_code` | string | UBL type code (default: `380` = commercial invoice) |
 | `currency` | string | ISO 4217 currency code (e.g. `EUR`) |
-| `payment_terms` | string | Free-text payment terms; multi-line supported |
+| `payment_terms` | string | Free-text payment terms; multi-line supported. Do **not** put the IBAN here — use `payment_means` |
+| `payment_means` | object | Structured bank payment details (optional). See [Payment means](#payment-means) |
 
 ## Party fields (`seller` and `buyer`)
 
@@ -121,6 +129,25 @@ See [`sample_invoice.json`](../sample_invoice.json) for a complete, working exam
 For VAT-exempt small businesses, use `E` (or `O`) with `tax_percent: 0`. The
 generator automatically adds a `TaxExemptionReason` element when either of
 these categories is used.
+
+## Payment means
+
+Structured bank account details emitted as `cac:PaymentMeans` (BT-81..86).
+Required for any invoice intended to be paid by credit transfer: PEPPOL rule
+**BR-50** mandates an IBAN when `PaymentMeansCode` is `30` or `58`. Put the IBAN
+here, not in `payment_terms`.
+
+| Field | Type | UBL / EN-16931 | Description |
+|---|---|---|---|
+| `code` | string | BT-81 | UNCL4461 payment means code; defaults to `30` (credit transfer). `58` = SEPA credit transfer |
+| `iban` | string | BT-84 | IBAN of the payee account |
+| `bic` | string | BT-86 | BIC / SWIFT code of the payee account (optional) |
+| `account_name` | string | BT-85 | Account holder name (defaults to `seller.name`) |
+| `payment_id` | string | BT-83 | Structured remittance reference (defaults to `invoice_number`) |
+
+If `payment_means` is omitted entirely, no `cac:PaymentMeans` element is emitted
+and BR-50 does not fire — use this for invoices paid by other means (cash,
+direct debit) where structured bank details are not relevant.
 
 ## Notes
 

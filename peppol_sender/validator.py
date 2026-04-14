@@ -17,6 +17,8 @@ _CAC_NS = "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponent
 
 _SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schemas" / "xsd" / "maindoc" / "UBL-Invoice-2.1.xsd"
 
+_CREDIT_TRANSFER_CODES = {"30", "58"}
+
 # Required elements and their search paths
 _REQUIRED = [
     (f"{{{_CBC_NS}}}CustomizationID", "CustomizationID"),
@@ -36,7 +38,8 @@ _REQUIRED = [
 def validate_basic(xml_bytes: bytes) -> list[dict]:
     """Run basic structural checks and return validation rules.
 
-    Checks for presence of required EN-16931 elements.
+    Checks for presence of required EN-16931 elements and applies the local
+    BR-50 rule (IBAN required when PaymentMeansCode is a credit-transfer code).
     """
     rules: list[dict] = []
     try:
@@ -56,7 +59,34 @@ def validate_basic(xml_bytes: bytes) -> list[dict]:
                 }
             )
 
+    rules.extend(_check_br50(root))
     return rules
+
+
+def _check_br50(root: ET.Element) -> list[dict]:
+    """BR-50: PayeeFinancialAccount/ID (IBAN) is required when PaymentMeansCode
+    is 30 or 58 (credit transfer). Not triggered when PaymentMeans is absent or
+    when a non-credit-transfer code is used.
+    """
+    code_el = root.find(f".//{{{_CBC_NS}}}PaymentMeansCode")
+    if code_el is None or (code_el.text or "").strip() not in _CREDIT_TRANSFER_CODES:
+        return []
+
+    iban_el = root.find(f".//{{{_CAC_NS}}}PaymentMeans/{{{_CAC_NS}}}PayeeFinancialAccount/{{{_CBC_NS}}}ID")
+    if iban_el is not None and (iban_el.text or "").strip():
+        return []
+
+    return [
+        {
+            "id": "LOCAL-BR-50",
+            "type": "FATAL",
+            "location": "/*:Invoice/*:PaymentMeans/*:PayeeFinancialAccount/*:ID",
+            "message": (
+                "BR-50: PayeeFinancialAccount/ID (IBAN) is required when "
+                "PaymentMeansCode is 30 or 58 (credit transfer)."
+            ),
+        }
+    ]
 
 
 @functools.cache

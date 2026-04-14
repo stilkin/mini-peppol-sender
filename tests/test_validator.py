@@ -90,3 +90,54 @@ def test_xsd_invalid_invoice() -> None:
     assert len(rules) > 0
     assert all(r["type"] == "FATAL" for r in rules)
     assert all(r["id"] == "XSD-VALIDATION" for r in rules)
+
+
+# --- BR-50 local check (credit transfer requires IBAN) ---
+
+
+_PAYMENT_MEANS_SAMPLE = {
+    "code": "30",
+    "iban": "BE68539007547034",
+    "bic": "BBRUBEBB",
+    "account_name": "Seller BV",
+}
+
+
+def _rule_ids(rules: list[dict]) -> list[str]:
+    return [r["id"] for r in rules]
+
+
+def test_br50_passes_on_present_iban() -> None:
+    xml = generate_ubl({**VALID_INVOICE, "payment_means": _PAYMENT_MEANS_SAMPLE})
+    assert "LOCAL-BR-50" not in _rule_ids(validate_basic(xml))
+
+
+def test_br50_triggers_on_missing_iban() -> None:
+    xml = generate_ubl({**VALID_INVOICE, "payment_means": {"code": "30"}})
+    rules = validate_basic(xml)
+    br50 = [r for r in rules if r["id"] == "LOCAL-BR-50"]
+    assert len(br50) == 1
+    assert br50[0]["type"] == "FATAL"
+
+
+def test_br50_applies_to_code_58() -> None:
+    xml = generate_ubl({**VALID_INVOICE, "payment_means": {"code": "58"}})
+    assert "LOCAL-BR-50" in _rule_ids(validate_basic(xml))
+
+
+def test_br50_not_applied_to_non_credit_transfer_code() -> None:
+    xml = generate_ubl({**VALID_INVOICE, "payment_means": {"code": "10"}})
+    assert "LOCAL-BR-50" not in _rule_ids(validate_basic(xml))
+
+
+def test_br50_not_applied_when_payment_means_absent() -> None:
+    xml = generate_ubl(VALID_INVOICE)
+    assert "LOCAL-BR-50" not in _rule_ids(validate_basic(xml))
+
+
+def test_br50_triggers_on_empty_iban_element() -> None:
+    # Hand-crafted XML with empty PayeeFinancialAccount/ID
+    xml = generate_ubl({**VALID_INVOICE, "payment_means": {**_PAYMENT_MEANS_SAMPLE, "iban": ""}})
+    # Empty iban means generator skips the PayeeFinancialAccount entirely, so
+    # the rule still fires (missing IBAN for credit transfer code).
+    assert "LOCAL-BR-50" in _rule_ids(validate_basic(xml))

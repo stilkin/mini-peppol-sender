@@ -11,6 +11,7 @@ const LS_KEYS = {
   templates: "peppol_line_templates",
   lastNumber: "peppol_last_invoice_number",
   sellerContact: "peppol_seller_contact",
+  sellerBank: "peppol_seller_bank",
 };
 
 const DEFAULT_DEFAULTS = {
@@ -96,6 +97,16 @@ function getSellerContact() {
 
 function saveSellerContact(contact) {
   lsSet(LS_KEYS.sellerContact, contact);
+}
+
+// ---------- Seller bank account (local-only) ----------
+
+function getSellerBank() {
+  return lsGet(LS_KEYS.sellerBank, { iban: "", bic: "", account_name: "" });
+}
+
+function saveSellerBank(bank) {
+  lsSet(LS_KEYS.sellerBank, bank);
 }
 
 // ---------- Invoice number ----------
@@ -542,6 +553,16 @@ function collectInvoice() {
   const seller = { ...(sellerCache || {}) };
   if (seller.country) seller.country = seller.country.toUpperCase();
 
+  const bank = getSellerBank();
+  const payment_means = bank.iban
+    ? {
+        code: "30",
+        iban: bank.iban,
+        bic: bank.bic || undefined,
+        account_name: bank.account_name || undefined,
+      }
+    : undefined;
+
   return {
     invoice_number: $("#invoice_number").value,
     issue_date: $("#issue_date").value,
@@ -549,6 +570,7 @@ function collectInvoice() {
     invoice_type_code: "380",
     currency: ($("#currency").value || "EUR").toUpperCase(),
     payment_terms: $("#payment_terms").value || undefined,
+    payment_means,
     seller,
     buyer,
     lines,
@@ -695,6 +717,10 @@ function openSettings() {
   $("#default-due-days").value = d.due_days;
   $("#default-tax-category").value = d.tax_category;
   $("#default-tax-percent").value = d.tax_percent;
+  const bank = getSellerBank();
+  $("#seller-iban").value = bank.iban || "";
+  $("#seller-bic").value = bank.bic || "";
+  $("#seller-account-name").value = bank.account_name || "";
   const contact = getSellerContact();
   $("#seller-contact-name").value = contact.name || "";
   $("#seller-contact-email").value = contact.email || "";
@@ -709,6 +735,11 @@ function saveSettingsFromModal() {
     due_days: Number($("#default-due-days").value || 21),
     tax_category: $("#default-tax-category").value || "E",
     tax_percent: Number($("#default-tax-percent").value || 0),
+  });
+  saveSellerBank({
+    iban: $("#seller-iban").value.trim(),
+    bic: $("#seller-bic").value.trim(),
+    account_name: $("#seller-account-name").value.trim(),
   });
   saveSellerContact({
     name: $("#seller-contact-name").value,

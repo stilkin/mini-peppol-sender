@@ -6,6 +6,13 @@
   "currency": "EUR",
   "buyer_reference": "PO-2025-042",
   "payment_terms": "Net 21 days",
+  "payment_means": {
+    "code": "30",
+    "iban": "BE68539007547034",
+    "bic": "BBRUBEBB",
+    "account_name": "ACME Consulting BV",
+    "payment_id": "INV-2025-001"
+  },
   "seller": {
     "name": "ACME Consulting",
     "registration_name": "ACME Consulting BV",

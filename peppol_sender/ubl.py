@@ -127,6 +127,37 @@ def _add_tax_total(inv: ET.Element, lines: list[dict], currency: str) -> Decimal
     return total_tax
 
 
+def _add_payment_means(inv: ET.Element, invoice: dict, seller_name: str) -> None:
+    """Add cac:PaymentMeans with credit-transfer code and PayeeFinancialAccount.
+
+    Emitted only when the invoice dict contains a `payment_means` block. Default
+    `code` is "30" (UNCL4461 credit transfer). `payment_id` defaults to the
+    invoice number; `account_name` defaults to the seller name.
+    """
+    pm_data = invoice.get("payment_means")
+    if not pm_data:
+        return
+
+    pm = _sub(inv, "cac", "PaymentMeans")
+    _sub(pm, "cbc", "PaymentMeansCode", str(pm_data.get("code", "30")))
+
+    payment_id = pm_data.get("payment_id", invoice.get("invoice_number"))
+    if payment_id:
+        _sub(pm, "cbc", "PaymentID", str(payment_id))
+
+    iban = pm_data.get("iban")
+    if iban:
+        account = _sub(pm, "cac", "PayeeFinancialAccount")
+        _sub(account, "cbc", "ID", iban)
+        account_name = pm_data.get("account_name", seller_name)
+        if account_name:
+            _sub(account, "cbc", "Name", account_name)
+        bic = pm_data.get("bic")
+        if bic:
+            branch = _sub(account, "cac", "FinancialInstitutionBranch")
+            _sub(branch, "cbc", "ID", bic)
+
+
 def _add_legal_monetary_total(inv: ET.Element, line_sum: Decimal, tax_total: Decimal, currency: str) -> None:
     """Add LegalMonetaryTotal element."""
     lmt = _sub(inv, "cac", "LegalMonetaryTotal")
@@ -202,6 +233,9 @@ def generate_ubl(invoice: dict) -> bytes:
     # Parties
     _add_party(inv, "AccountingSupplierParty", invoice.get("seller", {}), currency)
     _add_party(inv, "AccountingCustomerParty", invoice.get("buyer", {}), currency)
+
+    # PaymentMeans — must come before PaymentTerms per UBL xs:sequence
+    _add_payment_means(inv, invoice, invoice.get("seller", {}).get("name", ""))
 
     # PaymentTerms
     if invoice.get("payment_terms"):

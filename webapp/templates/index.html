@@ -132,7 +132,7 @@
           </label>
           <label class="field span-4">
             <span class="micro">Payment terms</span>
-            <textarea id="payment_terms" rows="3" placeholder="Net 21 days&#10;IBAN: BE00 0000 0000 0000"></textarea>
+            <textarea id="payment_terms" rows="3" placeholder="Net 21 days"></textarea>
           </label>
         </div>
       </section>
@@ -222,6 +222,22 @@
       <label class="field">
         <span class="micro">Default tax %</span>
         <input type="number" id="default-tax-percent" class="mono" min="0" step="any">
+      </label>
+
+      <h2 class="settings-subhead">Bank account</h2>
+      <p class="meta">Included on every invoice as structured PaymentMeans (BR-50).</p>
+
+      <label class="field">
+        <span class="micro">IBAN</span>
+        <input type="text" id="seller-iban" class="mono" placeholder="BE00 0000 0000 0000">
+      </label>
+      <label class="field">
+        <span class="micro">BIC (optional)</span>
+        <input type="text" id="seller-bic" class="mono" placeholder="BANKBEBB">
+      </label>
+      <label class="field">
+        <span class="micro">Account holder (optional)</span>
+        <input type="text" id="seller-account-name" placeholder="defaults to company name">
       </label>
 
       <h2 class="settings-subhead">Your contact info</h2>
