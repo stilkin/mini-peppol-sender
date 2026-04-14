@@ -47,7 +47,7 @@ The validator MUST emit a local FATAL rule when a credit-transfer `PaymentMeansC
 #### Scenario: Credit transfer without IBAN triggers BR-50
 
 - **WHEN** `validate_basic()` is called on invoice XML containing `PaymentMeansCode` of `30` or `58` and no `PayeeFinancialAccount/ID` (or an empty one)
-- **THEN** a FATAL rule with `id: LOCAL-BR-50` and a location pointing to the `cac:PaymentMeans` element is returned
+- **THEN** a FATAL rule with `id: LOCAL-BR-50` is returned whose `location` points at the missing IBAN element (`/*:Invoice/*:PaymentMeans/*:PayeeFinancialAccount/*:ID`)
 
 #### Scenario: Credit transfer with IBAN passes
 

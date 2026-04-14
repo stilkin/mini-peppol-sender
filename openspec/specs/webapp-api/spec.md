@@ -46,7 +46,7 @@ The Flask backend MUST accept invoice data, generate UBL XML, validate, and opti
 #### Scenario: POST /api/send
 
 - **WHEN** the frontend POSTs invoice JSON to `/api/send`
-- **THEN** the backend generates UBL XML (with PDF embedded as a `cac:AdditionalDocumentReference`), validates it, and if no FATAL rules exist, sends it via Peppyrus and returns the response
+- **THEN** the backend generates UBL XML (with a rendered PDF embedded as a `cac:AdditionalDocumentReference` when the request's `embed_pdf` flag is enabled), validates it, and if no FATAL rules exist, sends it via Peppyrus and returns the response
 
 ### Requirement: PDF preview endpoint
 
