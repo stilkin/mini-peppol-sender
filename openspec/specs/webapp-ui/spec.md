@@ -33,7 +33,12 @@ The webapp MUST allow looking up PEPPOL participants and selecting from recent c
 #### Scenario: Save new customer
 
 - **WHEN** an invoice is successfully sent to a new buyer
-- **THEN** the buyer details are saved to localStorage for future use
+- **THEN** the buyer details are saved to localStorage for future use, keyed on the participant ID (`endpoint_scheme:endpoint_id`) so that edits to a known customer overwrite the existing entry instead of creating a duplicate
+
+#### Scenario: Recipient auto-fill
+
+- **WHEN** the user looks up a buyer or picks a recent customer
+- **THEN** the "Send to participant" field is automatically populated with the buyer's `endpoint_scheme:endpoint_id`, remaining editable for manual overrides
 
 ### Requirement: Dynamic line items
 
@@ -51,8 +56,13 @@ The webapp MUST support adding, removing, and templating line items with auto-ca
 
 #### Scenario: Save line template
 
-- **WHEN** the user clicks "Save as template" on a line item
-- **THEN** the line item details are stored in localStorage for future use
+- **WHEN** the user clicks the ★ button on a line item
+- **THEN** the line item details (excluding `service_date`, which is invoice-specific) are stored in localStorage for future use
+
+#### Scenario: Line service date
+
+- **WHEN** the user picks a date in the line item's "service date" field
+- **THEN** the invoice JSON sent to the backend includes `service_date` on that line, and the backend emits a `cac:InvoicePeriod` element on the corresponding `InvoiceLine`
 
 #### Scenario: Auto-calculated totals
 
@@ -80,9 +90,14 @@ The webapp MUST validate invoices before sending and display clear results.
 
 ### Requirement: Settings management
 
-The webapp MUST allow users to view and edit their default invoice settings.
+The webapp MUST allow users to view and edit their default invoice settings and their personal contact info.
 
 #### Scenario: Edit defaults
 
-- **WHEN** the user opens a settings panel
-- **THEN** they can edit default currency, payment terms, due date offset, and tax category/percent, which are saved to localStorage
+- **WHEN** the user opens the settings modal
+- **THEN** they can edit default currency, payment terms (multi-line), due date offset, and tax category/percent — all saved to localStorage and applied to the next invoice
+
+#### Scenario: Edit seller contact info
+
+- **WHEN** the user fills in contact name, contact email, or contact phone in the settings modal
+- **THEN** the values are saved to localStorage under a dedicated key and merged into the seller object on subsequent invoices, producing a `cac:Contact` element in the generated XML

@@ -101,10 +101,12 @@ Single-page invoice form with:
 - **Seller auto-fill** from Peppyrus `/organization/info`
 - **Buyer lookup** by VAT number, enriched with PEPPOL directory data
 - **Recent customers** and **line item templates** stored in localStorage (overwrite-on-update)
+- **Line items** with optional **per-line service date** (UBL `cac:InvoicePeriod`)
 - **Live totals** as you type; strict unit and VAT category dropdowns
 - **Auto-incrementing invoice number**
 - **Settings modal** for defaults (currency, payment terms, due-date offset, tax category) and your personal contact info (name, email, phone)
 - **Validate before send** — FATAL rules block transmission and are shown inline
+- **Recipient auto-fill** from the buyer's PEPPOL endpoint when you look up or pick a recent customer
 
 All persistent state lives in the browser. The Flask server is stateless beyond the environment variables.
 
@@ -120,6 +122,8 @@ webapp/
   app.py                   Flask app and routes
   templates/index.html     Single-page invoice form
   static/                  CSS + vanilla JS (localStorage-backed state)
+  static/fonts/            Self-hosted Fraunces / Spectral / JetBrains Mono
+  static/fonts.css         Generated @font-face rules for the bundled fonts
 tests/                     pytest suite (unit + Flask test client)
 schemas/xsd/               Official UBL 2.1 XSD schemas (OASIS)
 docs/
