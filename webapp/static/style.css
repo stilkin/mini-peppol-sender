@@ -355,6 +355,7 @@ select#template-select {
 }
 
 .span-2 { grid-column: span 2; }
+.span-4 { grid-column: span 4; }
 
 /* -------- Line items (two-row cards) -------- */
 .line-items {
