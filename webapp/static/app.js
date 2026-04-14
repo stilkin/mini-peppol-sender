@@ -498,10 +498,29 @@ function clearLineRow(row) {
   row.querySelector(".line-total-cell").textContent = "0.00";
 }
 
+// Validate YYYY-MM-DD. Empty string is allowed (= unset). Bad input marks the
+// element as aria-invalid and returns "" so the caller does not forward
+// garbage to the backend (which would fail PEPPOL rule F001 after transmission).
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function readDateInput(el) {
+  const value = el.value || "";
+  if (value && !ISO_DATE_RE.test(value)) {
+    el.setAttribute("aria-invalid", "true");
+    return "";
+  }
+  el.removeAttribute("aria-invalid");
+  return value;
+}
+
 function readLine(tr) {
   const line = {};
   tr.querySelectorAll("[data-line]").forEach((el) => {
     const key = el.dataset.line;
+    if (el.type === "date") {
+      line[key] = readDateInput(el);
+      return;
+    }
     line[key] = key === "quantity" || key === "unit_price" || key === "tax_percent" ? Number(el.value || 0) : el.value;
   });
   return line;
@@ -565,8 +584,8 @@ function collectInvoice() {
 
   return {
     invoice_number: $("#invoice_number").value,
-    issue_date: $("#issue_date").value,
-    due_date: $("#due_date").value || undefined,
+    issue_date: readDateInput($("#issue_date")),
+    due_date: readDateInput($("#due_date")) || undefined,
     invoice_type_code: "380",
     currency: ($("#currency").value || "EUR").toUpperCase(),
     payment_terms: $("#payment_terms").value || undefined,

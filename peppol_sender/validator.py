@@ -6,6 +6,7 @@ against the official UBL 2.1 schema. Each check returns a list of rule dicts:
 """
 
 import functools
+import re
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -18,6 +19,10 @@ _CAC_NS = "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponent
 _SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schemas" / "xsd" / "maindoc" / "UBL-Invoice-2.1.xsd"
 
 _CREDIT_TRANSFER_CODES = {"30", "58"}
+
+# PEPPOL-EN16931-F001: date elements must be formatted YYYY-MM-DD.
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_DATE_ELEMENTS = ("IssueDate", "DueDate", "TaxPointDate", "StartDate", "EndDate", "ActualDeliveryDate")
 
 # Required elements and their search paths
 _REQUIRED = [
@@ -60,6 +65,32 @@ def validate_basic(xml_bytes: bytes) -> list[dict]:
             )
 
     rules.extend(_check_br50(root))
+    rules.extend(_check_date_formats(root))
+    return rules
+
+
+def _check_date_formats(root: ET.Element) -> list[dict]:
+    """Local mirror of PEPPOL-EN16931-F001: every date element MUST be YYYY-MM-DD.
+
+    Catches empty or malformed dates before transmission so they don't surface
+    as F001 after a failed send.
+    """
+    rules: list[dict] = []
+    for el in root.iter():
+        name = el.tag.rsplit("}", 1)[-1]
+        if name not in _DATE_ELEMENTS:
+            continue
+        text = (el.text or "").strip()
+        if _ISO_DATE_RE.fullmatch(text):
+            continue
+        rules.append(
+            {
+                "id": "LOCAL-F001",
+                "type": "FATAL",
+                "location": f"/*:{name}",
+                "message": f"F001: {name} must be formatted YYYY-MM-DD (got {text!r}).",
+            }
+        )
     return rules
 
 

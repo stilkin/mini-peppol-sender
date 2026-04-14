@@ -141,3 +141,46 @@ def test_br50_triggers_on_empty_iban_element() -> None:
     # Empty iban means generator skips the PayeeFinancialAccount entirely, so
     # the rule still fires (missing IBAN for credit transfer code).
     assert "LOCAL-BR-50" in _rule_ids(validate_basic(xml))
+
+
+# --- LOCAL-F001 local date format check ---
+
+
+def test_f001_passes_on_valid_dates() -> None:
+    xml = generate_ubl(VALID_INVOICE)
+    assert "LOCAL-F001" not in _rule_ids(validate_basic(xml))
+
+
+def test_f001_triggers_on_malformed_issue_date() -> None:
+    xml = generate_ubl({**VALID_INVOICE, "issue_date": "not-a-date"})
+    rules = [r for r in validate_basic(xml) if r["id"] == "LOCAL-F001"]
+    assert any("IssueDate" in r["location"] for r in rules)
+
+
+def test_f001_triggers_on_prefixed_line_service_date() -> None:
+    """Regression: reproduces the '262025-12-16' garbage date bug."""
+    invoice = {
+        **VALID_INVOICE,
+        "lines": [
+            {
+                "id": "1",
+                "quantity": 1,
+                "unit_price": 100.0,
+                "tax_category": "E",
+                "tax_percent": 0,
+                "service_date": "262025-12-16",
+            }
+        ],
+    }
+    xml = generate_ubl(invoice)
+    rules = [r for r in validate_basic(xml) if r["id"] == "LOCAL-F001"]
+    locations = [r["location"] for r in rules]
+    assert "/*:StartDate" in locations
+    assert "/*:EndDate" in locations
+
+
+def test_f001_triggers_on_empty_issue_date() -> None:
+    """Empty string issue_date (e.g. unfilled webapp input) must not slip through."""
+    xml = generate_ubl({**VALID_INVOICE, "issue_date": ""})
+    rules = [r for r in validate_basic(xml) if r["id"] == "LOCAL-F001"]
+    assert any("IssueDate" in r["location"] for r in rules)
