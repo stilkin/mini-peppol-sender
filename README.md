@@ -1,15 +1,16 @@
-# Peppol Sender
+# Peppify
 
 A small tool for generating [EN-16931](https://peppol.org/what-is-peppol/peppol-document-specifications/) compliant UBL 2.1 invoices and sending them to the [PEPPOL](https://peppol.org/) e-invoicing network through the [Peppyrus](https://peppyrus.be/) Access Point API. Ships as both a **command-line tool** and a **single-page web UI**.
 
 ## What it does
 
 - **Create** EN-16931 compliant UBL 2.1 XML from a simple JSON input (or a web form)
+- **Render** a human-readable PDF "visual representation" of the invoice and embed it inside the UBL XML (PEPPOL BIS Billing 3.0 rule R008) so receivers' accountancy software has something to show end users
 - **Validate** the XML against the official UBL 2.1 XSD schemas
 - **Send** it to the PEPPOL network via Peppyrus, with automatic retry on transient failures
 - **Fetch reports** (validation + transmission rules) for sent messages
 
-Designed for a small business that needs to issue invoices themselves, not for enterprise volume. Supports VAT-exempt businesses (tax categories `E` / `O`).
+Designed for a small business that needs to issue invoices themselves, not for enterprise volume. Supports VAT-exempt businesses (tax categories `E` / `O`) and emits structured payment details (`cac:PaymentMeans` with IBAN / BIC) so receivers' bookkeeping software can auto-reconcile — bank details live in the structured `payment_means` block, **not** in the free-form `payment_terms` note.
 
 ## Technologies
 
@@ -20,6 +21,7 @@ Designed for a small business that needs to issue invoices themselves, not for e
 | HTTP client | `requests` + `urllib3.Retry` adapter |
 | Configuration | `python-dotenv` |
 | XSD validation | `xmlschema` (pure Python) with a cached schema instance |
+| PDF rendering | [WeasyPrint](https://weasyprint.org/) + Jinja2 (HTML template → PDF) |
 | Web UI backend | Flask 3 |
 | Web UI frontend | Jinja2 templates + vanilla JS + CSS (no build step, no framework) |
 | State (web UI) | browser localStorage — no server-side database |
@@ -36,6 +38,25 @@ Requires Python 3.10 or newer. Install [uv](https://docs.astral.sh/uv/getting-st
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
+
+### System prerequisites (WeasyPrint)
+
+PDF rendering uses [WeasyPrint](https://weasyprint.org/), which needs Pango, Cairo, and libgdk-pixbuf at the OS level. Install them once with your package manager:
+
+```bash
+# Debian / Ubuntu
+sudo apt install libpango-1.0-0 libpangoft2-1.0-0 libcairo2 libgdk-pixbuf2.0-0
+
+# Fedora
+sudo dnf install pango cairo gdk-pixbuf2
+
+# macOS (Homebrew)
+brew install pango cairo gdk-pixbuf
+```
+
+Most modern desktop Linux distros already have these. If the libraries are missing, the library still imports and XML generation still works — only `render_pdf()` (and the CLI's default PDF embedding) will raise a clear `RuntimeError` pointing back to this section.
+
+### Python dependencies
 
 Then clone the repo and sync dependencies:
 
@@ -72,8 +93,11 @@ Prefix these with `uv run` (which transparently uses `.venv`), or activate the v
 ### Command-line
 
 ```bash
-# 1. Generate UBL XML from a JSON invoice
+# 1. Generate UBL XML from a JSON invoice (embeds a rendered PDF by default)
 uv run python cli.py create --input sample_invoice.json --out invoice.xml
+
+# 1b. XML-only output (skip the embedded PDF)
+uv run python cli.py create --input sample_invoice.json --out invoice.xml --no-pdf
 
 # 2. Validate it (structural checks + XSD)
 uv run python cli.py validate --file invoice.xml
@@ -104,9 +128,10 @@ Single-page invoice form with:
 - **Line items** with optional **per-line service date** (UBL `cac:InvoicePeriod`)
 - **Live totals** as you type; strict unit and VAT category dropdowns
 - **Auto-incrementing invoice number**
-- **Settings modal** for defaults (currency, payment terms, due-date offset, tax category) and your personal contact info (name, email, phone)
-- **Validate before send** — FATAL rules block transmission and are shown inline
-- **Recipient auto-fill** from the buyer's PEPPOL endpoint when you look up or pick a recent customer
+- **Settings modal** for defaults (currency, due-date offset, payment terms, tax category, **embed PDF on/off**), your **bank account** (IBAN, BIC, account holder — emitted as structured `cac:PaymentMeans` on every invoice to satisfy PEPPOL rule BR-50), and your personal contact info (name, email, phone)
+- **Preview PDF** button — see the human-readable representation that will be embedded in the invoice before you send it
+- **Guarded Send** — the `Send invoice` button stays disabled until you click `Validate` and no FATAL rules remain; rules are shown inline and block transmission either way
+- **Recipient derived from the buyer** — the outgoing PEPPOL `recipient` is built on the fly from the buyer's `Scheme` + `Endpoint ID` fields, so you only enter the identifier once
 
 All persistent state lives in the browser. The Flask server is stateless beyond the environment variables.
 
@@ -116,8 +141,10 @@ All persistent state lives in the browser. The Flask server is stateless beyond 
 cli.py                     CLI entry point (create, validate, send, report)
 peppol_sender/
   ubl.py                   EN-16931 compliant UBL 2.1 XML generation
-  validator.py             Structural + XSD validation (cached schema)
+  pdf.py                   Jinja2 + WeasyPrint invoice PDF renderer
+  validator.py             Structural + XSD validation, local BR-50 + LOCAL-F001 rules
   api.py                   Peppyrus API client with retry
+  templates/invoice.html   PDF template used by pdf.py
 webapp/
   app.py                   Flask app and routes
   templates/index.html     Single-page invoice form

@@ -80,6 +80,51 @@ JSON invoice data structure, including all mandatory fields required by PEPPOL B
 - **WHEN** optional fields are omitted from the invoice dict
 - **THEN** defaults are applied: `invoice_number` = `INV-0001`, `invoice_type_code` = `380`, `currency` = `EUR`, `unit` = `EA`, `endpoint_scheme` = `0208`
 
+#### Scenario: Payment means — credit transfer with IBAN
+
+- **WHEN** the invoice dict contains `payment_means` with an `iban` and optional `bic`, `account_name`, `payment_id`, and `code`
+- **THEN** the generated XML includes `cac:PaymentMeans` positioned after `AccountingCustomerParty` and before `PaymentTerms`, containing `cbc:PaymentMeansCode` (value from `code`), optional `cbc:PaymentID`, and `cac:PayeeFinancialAccount` with `cbc:ID` (the IBAN), optional `cbc:Name` (the account holder), and optional `cac:FinancialInstitutionBranch/cbc:ID` (the BIC)
+
+#### Scenario: Payment means defaults
+
+- **WHEN** `payment_means` contains `iban` but omits `code`, `account_name`, and `payment_id`
+- **THEN** `PaymentMeansCode` defaults to `"30"` (credit transfer), `Name` defaults to the seller name, and `PaymentID` defaults to the invoice number
+
+#### Scenario: BIC is optional
+
+- **WHEN** `payment_means` omits `bic`
+- **THEN** no `cac:FinancialInstitutionBranch` element is emitted under `PayeeFinancialAccount`
+
+#### Scenario: No payment means block
+
+- **WHEN** the invoice dict does not contain a `payment_means` key
+- **THEN** no `cac:PaymentMeans` element is emitted and the rest of the invoice XML is unchanged
+
+#### Scenario: Non-credit-transfer payment codes
+
+- **WHEN** `payment_means.code` is a non-credit-transfer value (e.g. `"10"` for cash, `"20"` for cheque)
+- **THEN** `cac:PaymentMeans` is still emitted with the given code and with `PayeeFinancialAccount` populated only if an `iban` is supplied
+
+#### Scenario: Embed visual representation (PDF)
+
+- **WHEN** `generate_ubl()` is called with `embed_pdf=True` (the CLI and webapp default at their call sites)
+- **THEN** the generated XML contains exactly one `cac:AdditionalDocumentReference` positioned after `cbc:BuyerReference` and before `cac:AccountingSupplierParty`, containing `cbc:ID` (the invoice number), `cbc:DocumentDescription` (`"Commercial Invoice"`), and `cac:Attachment/cbc:EmbeddedDocumentBinaryObject` with `mimeCode="application/pdf"`, `filename="<invoice_number>.pdf"`, and base64-encoded PDF bytes as element text
+
+#### Scenario: Single visual representation per invoice
+
+- **WHEN** an invoice is generated with PDF embedding enabled
+- **THEN** exactly one `cac:AdditionalDocumentReference` with an embedded PDF is emitted (matching PEPPOL-EN16931-R008)
+
+#### Scenario: PDF embedding opt-out
+
+- **WHEN** `generate_ubl()` is called with `embed_pdf=False` (the library default)
+- **THEN** no `cac:AdditionalDocumentReference` element is emitted and the rest of the XML is unchanged
+
+#### Scenario: PDF totals match XML totals
+
+- **WHEN** an invoice is rendered and embedded
+- **THEN** the totals displayed in the PDF (subtotal, tax, grand total) match the XML's `LegalMonetaryTotal/PayableAmount` and `TaxTotal/TaxAmount` byte-for-byte, including for mixed-rate invoices (same tax-group Decimal rounding as `_add_tax_total`)
+
 ### Requirement: CLI create subcommand
 
 The `create` subcommand reads a JSON file and writes UBL XML to disk.

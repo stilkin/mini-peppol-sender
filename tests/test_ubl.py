@@ -469,3 +469,137 @@ def test_decimal_precision_no_float_drift() -> None:
     assert lmt is not None
     assert lmt.find(f"{{{CBC}}}LineExtensionAmount").text == "99.99"  # type: ignore[union-attr]
     assert lmt.find(f"{{{CBC}}}PayableAmount").text == "99.99"  # type: ignore[union-attr]
+
+
+# --- Payment means (BR-50 structured credit-transfer block) ---
+
+
+PAYMENT_MEANS_SAMPLE = {
+    "code": "30",
+    "iban": "BE68539007547034",
+    "bic": "BBRUBEBB",
+    "account_name": "Test Seller BV",
+    "payment_id": "INV-TEST-001",
+}
+
+
+def _with_pm(**overrides: object) -> dict:
+    """SAMPLE_INVOICE augmented with a payment_means block."""
+    pm = {**PAYMENT_MEANS_SAMPLE, **overrides}
+    return {**SAMPLE_INVOICE, "payment_means": pm}
+
+
+def test_payment_means_structure() -> None:
+    root = _parse(_with_pm())
+    pms = root.findall(f"{{{CAC}}}PaymentMeans")
+    assert len(pms) == 1
+    pm = pms[0]
+    assert pm.find(f"{{{CBC}}}PaymentMeansCode").text == "30"  # type: ignore[union-attr]
+    assert pm.find(f"{{{CBC}}}PaymentID").text == "INV-TEST-001"  # type: ignore[union-attr]
+    account = pm.find(f"{{{CAC}}}PayeeFinancialAccount")
+    assert account is not None
+    assert account.find(f"{{{CBC}}}ID").text == "BE68539007547034"  # type: ignore[union-attr]
+    assert account.find(f"{{{CBC}}}Name").text == "Test Seller BV"  # type: ignore[union-attr]
+    branch = account.find(f"{{{CAC}}}FinancialInstitutionBranch")
+    assert branch is not None
+    assert branch.find(f"{{{CBC}}}ID").text == "BBRUBEBB"  # type: ignore[union-attr]
+
+
+def test_payment_means_bic_optional() -> None:
+    pm = {k: v for k, v in PAYMENT_MEANS_SAMPLE.items() if k != "bic"}
+    root = _parse({**SAMPLE_INVOICE, "payment_means": pm})
+    account = root.find(f".//{{{CAC}}}PayeeFinancialAccount")
+    assert account is not None
+    assert account.find(f"{{{CAC}}}FinancialInstitutionBranch") is None
+
+
+def test_payment_means_payment_id_defaults_to_invoice_number() -> None:
+    pm = {k: v for k, v in PAYMENT_MEANS_SAMPLE.items() if k != "payment_id"}
+    root = _parse({**SAMPLE_INVOICE, "payment_means": pm})
+    pid = root.find(f".//{{{CAC}}}PaymentMeans/{{{CBC}}}PaymentID")
+    assert pid is not None
+    assert pid.text == SAMPLE_INVOICE["invoice_number"]
+
+
+def test_payment_means_account_name_defaults_to_seller_name() -> None:
+    pm = {k: v for k, v in PAYMENT_MEANS_SAMPLE.items() if k != "account_name"}
+    root = _parse({**SAMPLE_INVOICE, "payment_means": pm})
+    name = root.find(f".//{{{CAC}}}PayeeFinancialAccount/{{{CBC}}}Name")
+    assert name is not None
+    assert name.text == SAMPLE_INVOICE["seller"]["name"]  # type: ignore[index]
+
+
+def test_payment_means_absent_when_omitted() -> None:
+    root = _parse(SAMPLE_INVOICE)
+    assert root.find(f"{{{CAC}}}PaymentMeans") is None
+
+
+def test_payment_means_emits_with_missing_iban() -> None:
+    """Partial payment_means (no IBAN) still emits PaymentMeansCode so BR-50 can fire."""
+    pm = {"code": "30"}
+    root = _parse({**SAMPLE_INVOICE, "payment_means": pm})
+    pm_el = root.find(f"{{{CAC}}}PaymentMeans")
+    assert pm_el is not None
+    assert pm_el.find(f"{{{CBC}}}PaymentMeansCode").text == "30"  # type: ignore[union-attr]
+    assert pm_el.find(f"{{{CAC}}}PayeeFinancialAccount") is None
+
+
+def test_payment_means_before_payment_terms() -> None:
+    """UBL xs:sequence: PaymentMeans must precede PaymentTerms."""
+    root = _parse(_with_pm())
+    children = list(root)
+    tags = [c.tag.split("}")[-1] for c in children]
+    pm_idx = tags.index("PaymentMeans")
+    pt_idx = tags.index("PaymentTerms")
+    cust_idx = tags.index("AccountingCustomerParty")
+    assert cust_idx < pm_idx < pt_idx
+
+
+# --- Embedded PDF visual representation (R008) ---
+
+
+def test_embed_pdf_false_is_default() -> None:
+    root = _parse(SAMPLE_INVOICE)
+    assert root.find(f"{{{CAC}}}AdditionalDocumentReference") is None
+
+
+def test_embed_pdf_true_emits_additional_document_reference() -> None:
+    xml = generate_ubl(SAMPLE_INVOICE, embed_pdf=True)
+    root = ET.fromstring(xml)
+    adrs = root.findall(f"{{{CAC}}}AdditionalDocumentReference")
+    assert len(adrs) == 1
+    adr = adrs[0]
+    assert adr.find(f"{{{CBC}}}ID").text == "INV-TEST-001"  # type: ignore[union-attr]
+    assert adr.find(f"{{{CBC}}}DocumentDescription").text == "Commercial Invoice"  # type: ignore[union-attr]
+    attachment = adr.find(f"{{{CAC}}}Attachment")
+    assert attachment is not None
+    blob = attachment.find(f"{{{CBC}}}EmbeddedDocumentBinaryObject")
+    assert blob is not None
+    assert blob.get("mimeCode") == "application/pdf"
+    assert blob.get("filename") == "INV-TEST-001.pdf"
+    # Decode base64 and confirm it is a real PDF
+    import base64
+
+    assert blob.text is not None
+    decoded = base64.b64decode(blob.text)
+    assert decoded.startswith(b"%PDF-")
+
+
+def test_embed_pdf_position_in_xs_sequence() -> None:
+    """AdditionalDocumentReference MUST sit between BuyerReference and AccountingSupplierParty."""
+    xml = generate_ubl(SAMPLE_INVOICE, embed_pdf=True)
+    root = ET.fromstring(xml)
+    tags = [c.tag.split("}")[-1] for c in root]
+    br_idx = tags.index("BuyerReference")
+    adr_idx = tags.index("AdditionalDocumentReference")
+    sup_idx = tags.index("AccountingSupplierParty")
+    assert br_idx < adr_idx < sup_idx
+
+
+def test_embed_pdf_passes_xsd() -> None:
+    """The embed path must produce XML that still passes UBL 2.1 XSD validation."""
+    from peppol_sender.validator import validate_xsd
+
+    xml = generate_ubl(SAMPLE_INVOICE, embed_pdf=True)
+    rules = validate_xsd(xml)
+    assert rules == []

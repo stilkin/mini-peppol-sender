@@ -1,7 +1,7 @@
 [project]
-name = "peppol-sender"
+name = "peppify"
 version = "0.1.0"
-description = "EN-16931 compliant UBL 2.1 invoice generator, validator, and Peppyrus access-point client with CLI and web UI."
+description = "Peppify — EN-16931 compliant UBL 2.1 invoice generator, validator, and Peppyrus access-point client with CLI and web UI."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
@@ -10,6 +10,8 @@ dependencies = [
     "python-dotenv>=1.0",
     "xmlschema>=3.0",
     "flask>=3.0",
+    "jinja2>=3.1",
+    "weasyprint>=60",
 ]
 
 [dependency-groups]

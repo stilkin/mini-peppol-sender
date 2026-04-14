@@ -193,3 +193,120 @@ def test_send_missing_credentials(client_no_creds: FlaskClient) -> None:
         json={"invoice": _VALID_INVOICE, "recipient": "0208:be0674415660"},
     )
     assert resp.status_code == 500
+
+
+# ---------- payment means / BR-50 ----------
+
+
+_PAYMENT_MEANS_SAMPLE = {
+    "code": "30",
+    "iban": "BE68539007547034",
+    "bic": "BBRUBEBB",
+    "account_name": "Seller BV",
+}
+
+
+def test_validate_with_payment_means_passes(client: FlaskClient) -> None:
+    invoice = {**_VALID_INVOICE, "payment_means": _PAYMENT_MEANS_SAMPLE}
+    resp = client.post("/api/validate", json=invoice)
+    assert resp.status_code == 200
+    rules = resp.get_json()["rules"]
+    assert not any(r["id"] == "LOCAL-BR-50" for r in rules)
+
+
+def test_validate_with_partial_payment_means_triggers_br50(client: FlaskClient) -> None:
+    invoice = {**_VALID_INVOICE, "payment_means": {"code": "30"}}
+    resp = client.post("/api/validate", json=invoice)
+    assert resp.status_code == 200
+    rules = resp.get_json()["rules"]
+    br50 = [r for r in rules if r["id"] == "LOCAL-BR-50"]
+    assert len(br50) == 1
+    assert br50[0]["type"] == "FATAL"
+
+
+@patch("peppol_sender.api._session")
+def test_send_routes_payment_means_through(mock_session_fn: MagicMock, client: FlaskClient) -> None:
+    mock_session_fn.return_value = _mock_session(
+        "post",
+        200,
+        {"id": "msg-pm-001"},
+    )
+    invoice = {**_VALID_INVOICE, "payment_means": _PAYMENT_MEANS_SAMPLE}
+    resp = client.post(
+        "/api/send",
+        json={"invoice": invoice, "recipient": "0208:be0674415660"},
+    )
+    assert resp.status_code == 200
+    # The POST body sent to Peppyrus contains the base64-encoded XML; decode
+    # and confirm the structured PayeeFinancialAccount/ID is present.
+    import base64
+
+    posted_kwargs = mock_session_fn.return_value.post.call_args.kwargs
+    body = posted_kwargs["json"]
+    xml = base64.b64decode(body["fileContent"]).decode("utf-8")
+    assert "PayeeFinancialAccount" in xml
+    assert "BE68539007547034" in xml
+    assert "BBRUBEBB" in xml
+
+
+# ---------- /api/preview-pdf ----------
+
+
+def test_preview_pdf_returns_pdf(client: FlaskClient) -> None:
+    resp = client.post("/api/preview-pdf", json=_VALID_INVOICE)
+    assert resp.status_code == 200
+    assert resp.mimetype == "application/pdf"
+    assert resp.data.startswith(b"%PDF-")
+    assert len(resp.data) > 1000
+
+
+def test_preview_pdf_uses_invoice_number_as_filename(client: FlaskClient) -> None:
+    resp = client.post("/api/preview-pdf", json=_VALID_INVOICE)
+    assert resp.status_code == 200
+    disposition = resp.headers.get("Content-Disposition", "")
+    assert "INV-001.pdf" in disposition
+
+
+@patch("peppol_sender.api._session")
+def test_send_flow_embeds_pdf_in_xml(mock_session_fn: MagicMock, client: FlaskClient) -> None:
+    """/api/send routes through _validate_invoice with embed_pdf=True by default,
+    so the sent XML must contain a cac:AdditionalDocumentReference block."""
+    import base64
+
+    mock_session_fn.return_value = _mock_session("post", 200, {"id": "msg-pdf-001"})
+    resp = client.post(
+        "/api/send",
+        json={"invoice": _VALID_INVOICE, "recipient": "0208:be0674415660"},
+    )
+    assert resp.status_code == 200
+    posted_kwargs = mock_session_fn.return_value.post.call_args.kwargs
+    xml = base64.b64decode(posted_kwargs["json"]["fileContent"]).decode("utf-8")
+    assert "AdditionalDocumentReference" in xml
+    assert "application/pdf" in xml
+
+
+@patch("peppol_sender.api._session")
+def test_send_flow_skips_pdf_when_embed_pdf_false(mock_session_fn: MagicMock, client: FlaskClient) -> None:
+    """?embed_pdf=false on /api/send skips PDF embedding."""
+    import base64
+
+    mock_session_fn.return_value = _mock_session("post", 200, {"id": "msg-no-pdf"})
+    resp = client.post(
+        "/api/send?embed_pdf=false",
+        json={"invoice": _VALID_INVOICE, "recipient": "0208:be0674415660"},
+    )
+    assert resp.status_code == 200
+    posted_kwargs = mock_session_fn.return_value.post.call_args.kwargs
+    xml = base64.b64decode(posted_kwargs["json"]["fileContent"]).decode("utf-8")
+    assert "AdditionalDocumentReference" not in xml
+
+
+def test_validate_embed_pdf_false_omits_pdf(client: FlaskClient) -> None:
+    """?embed_pdf=false on /api/validate skips PDF embedding — verified by the
+    absence of side effects (no raising when WeasyPrint isn't exercised)."""
+    # The validate route doesn't return the XML, so we assert it still returns
+    # 200 with an empty rules list (i.e. the skipped-PDF path doesn't break
+    # validation). This is a smoke check; the real observable is in /api/send.
+    resp = client.post("/api/validate?embed_pdf=false", json=_VALID_INVOICE)
+    assert resp.status_code == 200
+    assert resp.get_json()["rules"] == []

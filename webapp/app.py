@@ -8,10 +8,11 @@ browser persists customer/template/defaults state.
 from __future__ import annotations
 
 import os
+from io import BytesIO
 from typing import Any
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_file
 
 from peppol_sender.api import (
     get_org_info,
@@ -20,6 +21,7 @@ from peppol_sender.api import (
     search_business_card,
     send_message,
 )
+from peppol_sender.pdf import render_pdf
 from peppol_sender.ubl import generate_ubl
 from peppol_sender.validator import validate_basic, validate_xsd
 
@@ -91,16 +93,37 @@ def api_business_card() -> tuple[Any, int]:
     return jsonify(resp["json"]), resp["status_code"]
 
 
-def _validate_invoice(invoice: dict[str, Any]) -> tuple[bytes, list[dict]]:
-    xml = generate_ubl(invoice)
+def _read_embed_pdf_flag() -> bool:
+    """Read ?embed_pdf=true|false from the query string. Defaults to True."""
+    return request.args.get("embed_pdf", "true").lower() != "false"
+
+
+def _validate_invoice(invoice: dict[str, Any], *, embed_pdf: bool = True) -> tuple[bytes, list[dict]]:
+    xml = generate_ubl(invoice, embed_pdf=embed_pdf)
     rules = validate_basic(xml) + validate_xsd(xml)
     return xml, rules
+
+
+@app.route("/api/preview-pdf", methods=["POST"])
+def api_preview_pdf() -> Any:
+    invoice = request.get_json(silent=True) or {}
+    try:
+        pdf_bytes = render_pdf(invoice)
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 500
+    filename = f"{invoice.get('invoice_number', 'invoice')}.pdf"
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=False,
+        download_name=filename,
+    )
 
 
 @app.route("/api/validate", methods=["POST"])
 def api_validate() -> tuple[Any, int]:
     invoice = request.get_json(silent=True) or {}
-    _, rules = _validate_invoice(invoice)
+    _, rules = _validate_invoice(invoice, embed_pdf=_read_embed_pdf_flag())
     return jsonify({"rules": rules}), 200
 
 
@@ -119,7 +142,7 @@ def api_send() -> tuple[Any, int]:
     if not recipient:
         return jsonify({"error": "recipient is required"}), 400
 
-    xml, rules = _validate_invoice(invoice)
+    xml, rules = _validate_invoice(invoice, embed_pdf=_read_embed_pdf_flag())
     fatal = [r for r in rules if r["type"] == "FATAL"]
     if fatal:
         return jsonify({"rules": rules, "error": "Validation failed"}), 422

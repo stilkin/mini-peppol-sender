@@ -11,6 +11,8 @@ const LS_KEYS = {
   templates: "peppol_line_templates",
   lastNumber: "peppol_last_invoice_number",
   sellerContact: "peppol_seller_contact",
+  sellerBank: "peppol_seller_bank",
+  embedPdf: "peppol_embed_pdf",
 };
 
 const DEFAULT_DEFAULTS = {
@@ -96,6 +98,27 @@ function getSellerContact() {
 
 function saveSellerContact(contact) {
   lsSet(LS_KEYS.sellerContact, contact);
+}
+
+// ---------- Seller bank account (local-only) ----------
+
+function getSellerBank() {
+  return lsGet(LS_KEYS.sellerBank, { iban: "", bic: "", account_name: "" });
+}
+
+function saveSellerBank(bank) {
+  lsSet(LS_KEYS.sellerBank, bank);
+}
+
+// ---------- PDF embedding toggle (local-only) ----------
+// Defaults to true on first run: a sent invoice should carry a visual.
+
+function getEmbedPdf() {
+  return lsGet(LS_KEYS.embedPdf, true);
+}
+
+function saveEmbedPdf(value) {
+  lsSet(LS_KEYS.embedPdf, Boolean(value));
 }
 
 // ---------- Invoice number ----------
@@ -244,10 +267,6 @@ function setBuyer(buyer) {
     const key = input.dataset.buyer;
     input.value = buyer[key] ?? "";
   });
-  // Derive recipient participant ID from endpoint fields when both are present.
-  if (buyer.endpoint_scheme && buyer.endpoint_id) {
-    $("#recipient").value = `${buyer.endpoint_scheme}:${buyer.endpoint_id}`;
-  }
 }
 
 function getBuyer() {
@@ -487,10 +506,29 @@ function clearLineRow(row) {
   row.querySelector(".line-total-cell").textContent = "0.00";
 }
 
+// Validate YYYY-MM-DD. Empty string is allowed (= unset). Bad input marks the
+// element as aria-invalid and returns "" so the caller does not forward
+// garbage to the backend (which would fail PEPPOL rule F001 after transmission).
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function readDateInput(el) {
+  const value = el.value || "";
+  if (value && !ISO_DATE_RE.test(value)) {
+    el.setAttribute("aria-invalid", "true");
+    return "";
+  }
+  el.removeAttribute("aria-invalid");
+  return value;
+}
+
 function readLine(tr) {
   const line = {};
   tr.querySelectorAll("[data-line]").forEach((el) => {
     const key = el.dataset.line;
+    if (el.type === "date") {
+      line[key] = readDateInput(el);
+      return;
+    }
     line[key] = key === "quantity" || key === "unit_price" || key === "tax_percent" ? Number(el.value || 0) : el.value;
   });
   return line;
@@ -542,49 +580,119 @@ function collectInvoice() {
   const seller = { ...(sellerCache || {}) };
   if (seller.country) seller.country = seller.country.toUpperCase();
 
+  const bank = getSellerBank();
+  const payment_means = bank.iban
+    ? {
+        code: "30",
+        iban: bank.iban,
+        bic: bank.bic || undefined,
+        account_name: bank.account_name || undefined,
+      }
+    : undefined;
+
   return {
     invoice_number: $("#invoice_number").value,
-    issue_date: $("#issue_date").value,
-    due_date: $("#due_date").value || undefined,
+    issue_date: readDateInput($("#issue_date")),
+    due_date: readDateInput($("#due_date")) || undefined,
     invoice_type_code: "380",
     currency: ($("#currency").value || "EUR").toUpperCase(),
     payment_terms: $("#payment_terms").value || undefined,
+    payment_means,
     seller,
     buyer,
     lines,
   };
 }
 
-// ---------- Validate / Send ----------
+// ---------- Send gate ----------
+// Send stays disabled until the user has run Validate at least once with no
+// FATAL rules. Subsequent edits do NOT re-disable — the server still catches
+// any regression via its own validate_basic + validate_xsd pass on /api/send.
+
+function setSendGate(state, message) {
+  const btn = $("#send-btn");
+  const hint = $("#send-hint");
+  btn.disabled = state !== "ready";
+  hint.textContent = message;
+  hint.classList.toggle("ready", state === "ready");
+  hint.classList.toggle("error", state === "error");
+}
+
+// ---------- Preview / Validate / Send ----------
+
+async function doPreviewPdf() {
+  const invoice = collectInvoice();
+  setBusy("#preview-btn", "Rendering…");
+  try {
+    const resp = await fetch("/api/preview-pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(invoice),
+    });
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      showResult({
+        kind: "error",
+        title: "Preview failed",
+        summary: escape(data.error || `HTTP ${resp.status}`),
+      });
+      return;
+    }
+    const blob = await resp.blob();
+    window.open(URL.createObjectURL(blob), "_blank");
+  } catch (err) {
+    showResult({ kind: "error", title: "Preview failed", summary: escape(String(err)) });
+  } finally {
+    clearBusy("#preview-btn", "Preview PDF");
+  }
+}
 
 async function doValidate() {
   const invoice = collectInvoice();
   setBusy("#validate-btn", "Validating…");
   try {
-    const resp = await fetch("/api/validate", {
+    const resp = await fetch(`/api/validate?embed_pdf=${getEmbedPdf()}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(invoice),
     });
     const data = await resp.json();
-    renderRules(data.rules || []);
+    const rules = data.rules || [];
+    renderRules(rules);
+    const fatal = rules.filter((r) => r.type === "FATAL");
+    if (fatal.length === 0) {
+      setSendGate("ready", "Ready to send");
+    } else {
+      setSendGate("error", `Fix ${fatal.length} FATAL rule${fatal.length === 1 ? "" : "s"}, then validate again`);
+    }
   } catch (err) {
     showResult({ kind: "error", title: "Validation failed", summary: escape(String(err)) });
+    setSendGate("error", "Validation request failed — try again");
   } finally {
     clearBusy("#validate-btn", "Validate");
   }
 }
 
+function deriveRecipient(buyer) {
+  const scheme = (buyer.endpoint_scheme || "").trim();
+  const id = (buyer.endpoint_id || "").trim();
+  return scheme && id ? `${scheme}:${id}` : "";
+}
+
 async function doSend() {
   const invoice = collectInvoice();
-  const recipient = $("#recipient").value.trim();
+  const recipient = deriveRecipient(invoice.buyer || {});
   if (!recipient) {
-    showResult({ kind: "error", title: "Missing recipient", summary: "Enter a participant ID before sending." });
+    showResult({
+      kind: "error",
+      title: "Missing buyer endpoint",
+      summary: "Set the buyer's Scheme and Endpoint ID before sending.",
+    });
     return;
   }
   setBusy("#send-btn", "Sending…");
   try {
-    const resp = await fetch("/api/send", {
+    const resp = await fetch(`/api/send?embed_pdf=${getEmbedPdf()}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ invoice, recipient }),
@@ -695,6 +803,11 @@ function openSettings() {
   $("#default-due-days").value = d.due_days;
   $("#default-tax-category").value = d.tax_category;
   $("#default-tax-percent").value = d.tax_percent;
+  const bank = getSellerBank();
+  $("#seller-iban").value = bank.iban || "";
+  $("#seller-bic").value = bank.bic || "";
+  $("#seller-account-name").value = bank.account_name || "";
+  $("#embed-pdf-toggle").checked = getEmbedPdf();
   const contact = getSellerContact();
   $("#seller-contact-name").value = contact.name || "";
   $("#seller-contact-email").value = contact.email || "";
@@ -710,6 +823,12 @@ function saveSettingsFromModal() {
     tax_category: $("#default-tax-category").value || "E",
     tax_percent: Number($("#default-tax-percent").value || 0),
   });
+  saveSellerBank({
+    iban: $("#seller-iban").value.trim(),
+    bic: $("#seller-bic").value.trim(),
+    account_name: $("#seller-account-name").value.trim(),
+  });
+  saveEmbedPdf($("#embed-pdf-toggle").checked);
   saveSellerContact({
     name: $("#seller-contact-name").value,
     email: $("#seller-contact-email").value,
@@ -747,6 +866,11 @@ function init() {
       if (caret !== null) el.setSelectionRange(caret, caret);
     });
   });
+
+  // Populate the settings-modal tax category select from the shared constant.
+  $("#default-tax-category").innerHTML = TAX_CATEGORIES
+    .map(([code, label]) => `<option value="${code}">${label}</option>`)
+    .join("");
 
   // Populate header form fields
   $("#invoice_number").value = nextInvoiceNumber();
@@ -801,8 +925,12 @@ function init() {
   $("#lookup-vat").addEventListener("keydown", (e) => { if (e.key === "Enter") lookupBuyer(); });
 
   // Validate / Send
+  $("#preview-btn").addEventListener("click", doPreviewPdf);
   $("#validate-btn").addEventListener("click", doValidate);
   $("#send-btn").addEventListener("click", doSend);
+
+  // Send stays disabled until the user has validated successfully at least once.
+  setSendGate("initial", "Click Validate first");
 
   // Settings modal
   $("#settings-btn").addEventListener("click", openSettings);
