@@ -9,7 +9,7 @@ A small tool for generating [EN-16931](https://peppol.org/what-is-peppol/peppol-
 - **Send** it to the PEPPOL network via Peppyrus, with automatic retry on transient failures
 - **Fetch reports** (validation + transmission rules) for sent messages
 
-Designed for a small business that needs to issue invoices themselves, not for enterprise volume. Supports VAT-exempt businesses (tax categories `E` / `O`).
+Designed for a small business that needs to issue invoices themselves, not for enterprise volume. Supports VAT-exempt businesses (tax categories `E` / `O`) and emits structured payment details (`cac:PaymentMeans` with IBAN / BIC) so receivers' bookkeeping software can auto-reconcile — bank details live in the structured `payment_means` block, **not** in the free-form `payment_terms` note.
 
 ## Technologies
 
@@ -104,7 +104,7 @@ Single-page invoice form with:
 - **Line items** with optional **per-line service date** (UBL `cac:InvoicePeriod`)
 - **Live totals** as you type; strict unit and VAT category dropdowns
 - **Auto-incrementing invoice number**
-- **Settings modal** for defaults (currency, payment terms, due-date offset, tax category) and your personal contact info (name, email, phone)
+- **Settings modal** for defaults (currency, payment terms, due-date offset, tax category), your **bank account** (IBAN, BIC, account holder — emitted as structured `cac:PaymentMeans` on every invoice to satisfy PEPPOL rule BR-50), and your personal contact info (name, email, phone)
 - **Validate before send** — FATAL rules block transmission and are shown inline
 - **Recipient auto-fill** from the buyer's PEPPOL endpoint when you look up or pick a recent customer
 
