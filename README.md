@@ -1,157 +1,155 @@
 # Peppol Sender
 
-A minimal Python CLI for generating UBL 2.1 invoices, validating them, and sending them to the [PEPPOL](https://peppol.org/) e-invoicing network via the [Peppyrus](https://peppyrus.be/) Access Point API.
+A small tool for generating [EN-16931](https://peppol.org/what-is-peppol/peppol-document-specifications/) compliant UBL 2.1 invoices and sending them to the [PEPPOL](https://peppol.org/) e-invoicing network through the [Peppyrus](https://peppyrus.be/) Access Point API. Ships as both a **command-line tool** and a **single-page web UI**.
 
-## Quickstart
+## What it does
+
+- **Create** EN-16931 compliant UBL 2.1 XML from a simple JSON input (or a web form)
+- **Validate** the XML against the official UBL 2.1 XSD schemas
+- **Send** it to the PEPPOL network via Peppyrus, with automatic retry on transient failures
+- **Fetch reports** (validation + transmission rules) for sent messages
+
+Designed for a small business that needs to issue invoices themselves, not for enterprise volume. Supports VAT-exempt businesses (tax categories `E` / `O`).
+
+## Technologies
+
+| Layer | Stack |
+|---|---|
+| Language | Python 3.10+ |
+| Package manager | [`uv`](https://docs.astral.sh/uv/) (venv + pip + lockfile in one tool) |
+| HTTP client | `requests` + `urllib3.Retry` adapter |
+| Configuration | `python-dotenv` |
+| XSD validation | `xmlschema` (pure Python) with a cached schema instance |
+| Web UI backend | Flask 3 |
+| Web UI frontend | Jinja2 templates + vanilla JS + CSS (no build step, no framework) |
+| State (web UI) | browser localStorage — no server-side database |
+| Bundled schemas | Official OASIS UBL 2.1 XSD files in `schemas/xsd/` |
+| Tests | `pytest` + `pytest-cov` (99% coverage, 80% minimum enforced) |
+| Lint / type check | `ruff` + `mypy --strict` + `pre-commit` |
+
+PEPPOL BIS Billing 3.0 process type and document type strings are sourced from the Peppyrus OpenAPI spec in `docs/openapi_peppyrus.json`.
+
+## Installation
+
+Requires Python 3.10 or newer. Install [uv](https://docs.astral.sh/uv/getting-started/installation/) first:
 
 ```bash
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt       # runtime only
-# or
-pip install -r requirements-dev.txt   # includes linting, typing, pre-commit
-cp .env.example .env                  # then fill in your credentials (see below)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
+
+Then clone the repo and sync dependencies:
+
+```bash
+uv sync              # installs runtime + dev dependencies into .venv
+# or
+uv sync --no-dev     # runtime dependencies only (smaller install)
+```
+
+`uv sync` creates a `.venv/` in the project root, installs everything pinned
+via `uv.lock`, and installs the `peppol_sender` package itself in editable
+mode. No `pip install`, no `python -m venv` — one command.
 
 ## Configuration
 
-Set these in `.env` (or export them in your shell):
+Copy the example environment file and fill in your credentials:
+
+```bash
+cp .env.example .env
+```
 
 | Variable | Required | Description |
 |---|---|---|
-| `PEPPYRUS_API_KEY` | Yes | Your Peppyrus API key |
-| `PEPPOL_SENDER_ID` | Yes | Your PEPPOL participant ID (e.g. `9925:be0123456789`) |
-| `PEPPYRUS_BASE_URL` | No | API base URL. Defaults to the test endpoint `https://api.test.peppyrus.be/v1` |
+| `PEPPYRUS_API_KEY` | Yes | Your Peppyrus API key (test and production are separate keys) |
+| `PEPPOL_SENDER_ID` | Yes | Your PEPPOL participant ID (e.g. `0208:0674415660`) |
+| `PEPPYRUS_BASE_URL` | No | API base URL. Defaults to the test endpoint `https://api.test.peppyrus.be/v1`. Set to `https://api.peppyrus.be/v1` for production. |
 
-## Usage
+Your API key is read once at process start and stays server-side. The web UI never exposes it to the browser.
 
-**Generate** a UBL 2.1 invoice XML from a JSON file:
+## Running the tool
 
-```bash
-python cli.py create --input sample_invoice.json --out invoice.xml
-```
+Prefix these with `uv run` (which transparently uses `.venv`), or activate the venv first with `. .venv/bin/activate` and drop the prefix.
 
-**Validate** the generated XML (basic structural checks):
+### Command-line
 
 ```bash
-python cli.py validate --file invoice.xml
+# 1. Generate UBL XML from a JSON invoice
+uv run python cli.py create --input sample_invoice.json --out invoice.xml
+
+# 2. Validate it (structural checks + XSD)
+uv run python cli.py validate --file invoice.xml
+
+# 3. Send it to a recipient on the PEPPOL network
+uv run python cli.py send --file invoice.xml --recipient 0208:be0674415660
+
+# 4. Fetch the validation/transmission report for a sent message
+uv run python cli.py report --id <MESSAGE_ID>
 ```
 
-**Send** the invoice to a recipient on the PEPPOL network:
+The `send` command runs validation first and refuses to transmit if any FATAL rules are triggered. Idempotent API calls (report, lookup) retry automatically on 5xx errors with exponential backoff; the actual `POST /message` is **not** retried to avoid duplicate transmissions.
+
+See [`docs/invoice-json-schema.md`](docs/invoice-json-schema.md) for the full JSON input format.
+
+### Web UI
 
 ```bash
-python cli.py send --file invoice.xml --recipient 9908:nl987654321
+uv run python webapp/app.py
+# open http://127.0.0.1:5000
 ```
 
-The `send` command runs validation first and refuses to transmit if any FATAL rules are triggered. API calls retry automatically on server errors (5xx) with exponential backoff.
+Single-page invoice form with:
 
-**Check the report** for a sent message:
+- **Seller auto-fill** from Peppyrus `/organization/info`
+- **Buyer lookup** by VAT number, enriched with PEPPOL directory data
+- **Recent customers** and **line item templates** stored in localStorage (overwrite-on-update)
+- **Live totals** as you type; strict unit and VAT category dropdowns
+- **Auto-incrementing invoice number**
+- **Settings modal** for defaults (currency, payment terms, due-date offset, tax category) and your personal contact info (name, email, phone)
+- **Validate before send** — FATAL rules block transmission and are shown inline
 
-```bash
-python cli.py report --id <MESSAGE_ID>
-```
-
-## Invoice JSON format
-
-See `sample_invoice.json` for a complete example. The expected structure:
-
-```json
-{
-  "invoice_number": "INV-2025-001",
-  "issue_date": "2025-11-29",
-  "due_date": "2025-12-29",
-  "invoice_type_code": "380",
-  "currency": "EUR",
-  "payment_terms": "Net 30 days",
-  "seller": {
-    "name": "ACME Consulting",
-    "registration_name": "ACME Consulting BV",
-    "endpoint_id": "BE0123456789",
-    "endpoint_scheme": "0208",
-    "country": "BE",
-    "street": "Main Street 1",
-    "city": "Brussels",
-    "postal_code": "1000"
-  },
-  "buyer": {
-    "name": "Client Corp",
-    "registration_name": "Client Corp BV",
-    "endpoint_id": "NL987654321",
-    "endpoint_scheme": "0208",
-    "vat": "NL987654321B01",
-    "country": "NL"
-  },
-  "lines": [
-    {
-      "id": "1",
-      "description": "Consulting service",
-      "quantity": 1,
-      "unit": "EA",
-      "unit_price": 1000.00,
-      "tax_category": "E",
-      "tax_percent": 0
-    }
-  ]
-}
-```
-
-| Field | Type | Description |
-|---|---|---|
-| `invoice_number` | string | Invoice identifier |
-| `issue_date` | string | ISO 8601 date (YYYY-MM-DD) |
-| `due_date` | string | Payment due date (optional if `payment_terms` set) |
-| `invoice_type_code` | string | UBL type code (default: `380` = commercial invoice) |
-| `currency` | string | ISO 4217 currency code (e.g. `EUR`) |
-| `payment_terms` | string | Free-text payment terms (optional) |
-| `seller.name` | string | Seller/supplier party name |
-| `seller.registration_name` | string | Legal registration name (defaults to `name`) |
-| `seller.endpoint_id` | string | Electronic address (e.g. VAT number) |
-| `seller.endpoint_scheme` | string | Endpoint scheme ID (default: `0208`) |
-| `seller.country` | string | ISO 3166-1 alpha-2 country code |
-| `seller.street` | string | Street address (optional) |
-| `seller.city` | string | City (optional) |
-| `seller.postal_code` | string | Postal code (optional) |
-| `seller.vat` | string | VAT number (optional, omit for VAT-exempt) |
-| `buyer.*` | | Same fields as seller |
-| `lines[].id` | string | Line item identifier |
-| `lines[].description` | string | Item description |
-| `lines[].quantity` | number | Quantity |
-| `lines[].unit` | string | Unit code (default: `EA`) |
-| `lines[].unit_price` | number | Price per unit |
-| `lines[].line_extension_amount` | number | Optional; defaults to `quantity * unit_price` |
-| `lines[].tax_category` | string | VAT category: `S` (standard), `E` (exempt), `O` (not subject) |
-| `lines[].tax_percent` | number | VAT rate (use `0` for exempt) |
+All persistent state lives in the browser. The Flask server is stateless beyond the environment variables.
 
 ## Project structure
 
 ```
-cli.py                  CLI entry point (create, validate, send, report)
+cli.py                     CLI entry point (create, validate, send, report)
 peppol_sender/
-  ubl.py                EN-16931 compliant UBL 2.1 XML generation
-  validator.py           Structural + XSD validation
-  api.py                 Peppyrus API client with retry (send, report)
-schemas/xsd/            Official UBL 2.1 XSD schemas (OASIS)
+  ubl.py                   EN-16931 compliant UBL 2.1 XML generation
+  validator.py             Structural + XSD validation (cached schema)
+  api.py                   Peppyrus API client with retry
+webapp/
+  app.py                   Flask app and routes
+  templates/index.html     Single-page invoice form
+  static/                  CSS + vanilla JS (localStorage-backed state)
+tests/                     pytest suite (unit + Flask test client)
+schemas/xsd/               Official UBL 2.1 XSD schemas (OASIS)
 docs/
-  openapi_peppyrus.json  Peppyrus OpenAPI 3.0 specification
-  development_plan.md    Architecture and roadmap notes
+  invoice-json-schema.md   Full JSON input reference
+  openapi_peppyrus.json    Peppyrus OpenAPI 3.0 specification
+openspec/                  Spec-driven change history (archived)
 ```
 
 ## Development
 
 ```bash
-ruff check .                     # lint
-ruff format .                    # format
-mypy .                           # type check
-pre-commit run --all-files       # run all pre-commit hooks
+uv run ruff check .                  # lint
+uv run ruff format .                 # format
+uv run mypy .                        # type check
+uv run pytest                        # run the test suite
+uv run pytest -k test_name           # run a single test by name
+uv run pytest tests/test_ubl.py      # run a single test file
+uv run pre-commit run --all-files    # run all pre-commit hooks
 ```
 
-Pre-commit hooks (Ruff + MyPy) are installed via `pre-commit install`.
+Dependencies are declared in `pyproject.toml` under `[project]` (runtime) and `[dependency-groups]` (dev). `uv.lock` pins exact versions for reproducible installs. Update the lock with `uv lock --upgrade` or pick a single package with `uv lock --upgrade-package <name>`.
+
+Pre-commit hooks (Ruff + MyPy) are installed via `uv run pre-commit install`. Coverage is enforced at ≥ 80% via `--cov-fail-under=80` in `pyproject.toml` (currently ~99%).
 
 ## Limitations
 
-- No Schematron / EN-16931 business rule validation (only structural checks + XSD).
-- Only Invoice document type supported (no credit notes).
-- API retry is limited to 3 attempts on 5xx errors; no persistent retry queue.
+- **No local Schematron / EN-16931 business rule validation.** The tool runs structural checks and XSD validation locally, but Schematron rules (e.g. `BR-CL-14`, `BR-CL-23`, `BR-CO-26`) are caught server-side by Peppyrus after transmission. You can retrieve the report with `cli.py report --id ...` or see the result inline in the web UI.
+- **Only the Invoice document type is supported** — no credit notes, debit notes, or other UBL document types.
+- **API retry is limited** to 3 attempts on 5xx errors with exponential backoff; there's no persistent retry queue.
+- **Single-user assumption** — the web UI has no authentication. The API key in `.env` belongs to one organisation and localStorage state is per-browser.
 
 ## License
 

@@ -14,7 +14,7 @@ The CLI is functional but requires manually editing JSON files to create invoice
 - **Dynamic line items**: add/remove rows with auto-calculated totals (line amounts, tax, grand total)
 - **Validate & Send**: validate the invoice (basic + XSD) before sending, display validation results, send via Peppyrus API with the API key kept server-side
 - Add `flask` to `requirements.txt`
-- Add Docker Compose setup with two services (CLI tool and webapp) sharing one image
+- (Deferred: Docker Compose setup will land in a follow-up change.)
 
 ## Capabilities
 
@@ -22,7 +22,6 @@ The CLI is functional but requires manually editing JSON files to create invoice
 
 - `webapp-ui`: Single-page invoice form with auto-population, lookup, localStorage convenience features, validate and send
 - `webapp-api`: Flask backend routes — serve form, proxy Peppyrus API lookups (org info, participant search), handle validate/send
-- `docker-deployment`: Dockerfile and docker-compose.yml for containerised deployment
 
 ### Modified Capabilities
 

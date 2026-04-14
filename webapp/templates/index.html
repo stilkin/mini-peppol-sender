@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Peppol — Invoice Composer</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='fonts.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="page-header">
+    <div class="masthead">
+      <h1>Peppol</h1>
+      <p class="subtitle">Invoice Composer · est. 2026</p>
+    </div>
+    <button class="settings-btn" id="settings-btn" aria-label="Settings" title="Defaults">
+      <span class="settings-icon">⚙</span>
+    </button>
+  </header>
+
+  <main class="paper">
+    <article class="invoice-doc">
+
+      <!-- ============== FROM ============== -->
+      <section class="doc-section section-from">
+        <div class="section-label"><span class="num">i.</span> From</div>
+        <div class="seller-card" id="seller-card">
+          <div class="seller-line seller-name">— loading —</div>
+          <div class="seller-line seller-address"></div>
+          <div class="seller-line seller-id"></div>
+          <div class="seller-line seller-contact"></div>
+        </div>
+      </section>
+
+      <hr class="rule-double">
+
+      <!-- ============== BILL TO ============== -->
+      <section class="doc-section section-bill-to">
+        <div class="section-label"><span class="num">ii.</span> Bill to</div>
+
+        <div class="bill-to-controls">
+          <div class="control-group">
+            <label class="micro">Recent</label>
+            <select id="recent-customers" aria-label="Recent customers">
+              <option value="">— select customer —</option>
+            </select>
+          </div>
+          <div class="control-group lookup-group">
+            <label class="micro">Look up by VAT</label>
+            <div class="lookup-row">
+              <input type="text" id="lookup-country" value="BE" maxlength="2" autocomplete="off" aria-label="Country code" data-uppercase>
+              <input type="text" id="lookup-vat" placeholder="0123456789" autocomplete="off" aria-label="VAT number">
+              <button type="button" id="lookup-btn">Look up</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="party-grid">
+          <label class="field span-2">
+            <span class="micro">Company</span>
+            <input type="text" data-buyer="name" placeholder="Acme Trading SA">
+          </label>
+          <label class="field span-2">
+            <span class="micro">Legal registration name</span>
+            <input type="text" data-buyer="registration_name" placeholder="Acme Trading SA">
+          </label>
+          <label class="field">
+            <span class="micro">Endpoint ID</span>
+            <input type="text" data-buyer="endpoint_id" class="mono" placeholder="0123456789">
+          </label>
+          <label class="field">
+            <span class="micro">Scheme</span>
+            <input type="text" data-buyer="endpoint_scheme" class="mono" value="0208">
+          </label>
+          <label class="field">
+            <span class="micro">VAT</span>
+            <input type="text" data-buyer="vat" class="mono" placeholder="optional">
+          </label>
+          <label class="field">
+            <span class="micro">Country</span>
+            <input type="text" data-buyer="country" class="mono" placeholder="BE" maxlength="2" data-uppercase>
+          </label>
+          <label class="field span-2">
+            <span class="micro">Street</span>
+            <input type="text" data-buyer="street">
+          </label>
+          <label class="field">
+            <span class="micro">City</span>
+            <input type="text" data-buyer="city">
+          </label>
+          <label class="field">
+            <span class="micro">Postal code</span>
+            <input type="text" data-buyer="postal_code" class="mono">
+          </label>
+          <label class="field span-2">
+            <span class="micro">Contact name (optional)</span>
+            <input type="text" data-buyer="contact_name">
+          </label>
+          <label class="field span-2">
+            <span class="micro">Contact email (optional)</span>
+            <input type="email" data-buyer="contact_email">
+          </label>
+          <label class="field span-2">
+            <span class="micro">Contact phone (optional)</span>
+            <input type="tel" data-buyer="contact_phone" class="mono">
+          </label>
+        </div>
+      </section>
+
+      <hr class="rule-double">
+
+      <!-- ============== INVOICE META ============== -->
+      <section class="doc-section section-meta">
+        <div class="section-label"><span class="num">iii.</span> Invoice details</div>
+
+        <div class="meta-grid">
+          <label class="field">
+            <span class="micro">Invoice number</span>
+            <input type="text" id="invoice_number" class="mono">
+          </label>
+          <label class="field">
+            <span class="micro">Issue date</span>
+            <input type="date" id="issue_date" class="mono">
+          </label>
+          <label class="field">
+            <span class="micro">Due date</span>
+            <input type="date" id="due_date" class="mono">
+          </label>
+          <label class="field">
+            <span class="micro">Currency</span>
+            <input type="text" id="currency" class="mono" value="EUR" maxlength="3" data-uppercase>
+          </label>
+          <label class="field span-4">
+            <span class="micro">Payment terms</span>
+            <textarea id="payment_terms" rows="3" placeholder="Net 21 days&#10;IBAN: BE00 0000 0000 0000"></textarea>
+          </label>
+        </div>
+      </section>
+
+      <hr class="rule-double">
+
+      <!-- ============== LINE ITEMS ============== -->
+      <section class="doc-section section-lines">
+        <div class="section-label"><span class="num">iv.</span> Items</div>
+
+        <div class="line-items" id="line-items-body">
+          <!-- rows added by JS -->
+        </div>
+
+        <div class="line-actions">
+          <button type="button" id="add-line-btn" class="link-btn">+ Add line</button>
+          <div class="template-loader">
+            <select id="template-select" aria-label="Load line item template">
+              <option value="">— load template —</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <hr class="rule-double">
+
+      <!-- ============== TOTALS ============== -->
+      <section class="doc-section section-totals">
+        <dl class="totals-list">
+          <div class="totals-row">
+            <dt>Subtotal</dt>
+            <dd class="mono" id="subtotal-display">0.00</dd>
+          </div>
+          <div class="totals-row">
+            <dt>Tax</dt>
+            <dd class="mono" id="tax-display">0.00</dd>
+          </div>
+          <div class="totals-row total-grand">
+            <dt>Total due</dt>
+            <dd class="mono" id="grand-display">0.00 EUR</dd>
+          </div>
+        </dl>
+      </section>
+
+      <hr class="rule-thick">
+
+      <!-- ============== ACTIONS ============== -->
+      <section class="doc-section section-actions">
+        <label class="field recipient-field">
+          <span class="micro">Send to participant</span>
+          <input type="text" id="recipient" class="mono" placeholder="0208:be0123456789">
+        </label>
+        <div class="button-row">
+          <button type="button" id="validate-btn" class="btn btn-secondary">Validate</button>
+          <button type="button" id="send-btn" class="btn btn-primary">Send invoice</button>
+        </div>
+      </section>
+
+      <!-- ============== RESULT ============== -->
+      <section id="result-panel" class="result-panel" role="status" aria-live="polite" aria-atomic="true" hidden></section>
+
+    </article>
+  </main>
+
+  <!-- ============== SETTINGS MODAL ============== -->
+  <dialog id="settings-modal" class="settings-modal">
+    <form method="dialog" class="settings-form">
+      <h2>Defaults</h2>
+      <p class="meta">Stored locally in your browser.</p>
+
+      <label class="field">
+        <span class="micro">Currency</span>
+        <input type="text" id="default-currency" class="mono" maxlength="3" data-uppercase>
+      </label>
+      <label class="field">
+        <span class="micro">Payment terms</span>
+        <textarea id="default-payment-terms" rows="3"></textarea>
+      </label>
+      <label class="field">
+        <span class="micro">Due date offset (days)</span>
+        <input type="number" id="default-due-days" class="mono" min="0">
+      </label>
+      <label class="field">
+        <span class="micro">Default tax category</span>
+        <input type="text" id="default-tax-category" class="mono" maxlength="2" placeholder="E" data-uppercase>
+      </label>
+      <label class="field">
+        <span class="micro">Default tax %</span>
+        <input type="number" id="default-tax-percent" class="mono" min="0" step="any">
+      </label>
+
+      <h2 class="settings-subhead">Your contact info</h2>
+      <p class="meta">Printed on every invoice you send.</p>
+
+      <label class="field">
+        <span class="micro">Contact name</span>
+        <input type="text" id="seller-contact-name">
+      </label>
+      <label class="field">
+        <span class="micro">Contact email</span>
+        <input type="email" id="seller-contact-email">
+      </label>
+      <label class="field">
+        <span class="micro">Contact phone</span>
+        <input type="tel" id="seller-contact-phone" class="mono">
+      </label>
+
+      <div class="modal-actions">
+        <button type="button" id="settings-cancel" class="btn btn-secondary">Cancel</button>
+        <button type="button" id="settings-save" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

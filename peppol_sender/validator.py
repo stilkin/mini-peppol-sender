@@ -5,6 +5,7 @@ against the official UBL 2.1 schema. Each check returns a list of rule dicts:
 { 'id': str, 'type': 'FATAL'|'WARNING', 'location': str, 'message': str }
 """
 
+import functools
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -58,6 +59,12 @@ def validate_basic(xml_bytes: bytes) -> list[dict]:
     return rules
 
 
+@functools.cache
+def _get_schema() -> xmlschema.XMLSchema:
+    """Load the UBL 2.1 XSD schema once and cache it."""
+    return xmlschema.XMLSchema(str(_SCHEMA_PATH))
+
+
 def validate_xsd(xml_bytes: bytes) -> list[dict]:
     """Validate XML against the UBL 2.1 XSD schema.
 
@@ -65,7 +72,7 @@ def validate_xsd(xml_bytes: bytes) -> list[dict]:
     """
     rules: list[dict] = []
     try:
-        schema = xmlschema.XMLSchema(str(_SCHEMA_PATH))
+        schema = _get_schema()
     except Exception as e:
         return [
             {

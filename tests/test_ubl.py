@@ -129,6 +129,75 @@ def test_buyer_party_with_vat() -> None:
     assert vat.text == "NL987654321B01"
 
 
+def test_legal_entity_company_id() -> None:
+    """BT-30/BT-47: PartyLegalEntity/CompanyID with optional schemeID."""
+    seller = dict(SAMPLE_INVOICE["seller"])  # type: ignore[arg-type]
+    seller["legal_id"] = "0674415660"
+    seller["legal_id_scheme"] = "0208"
+    buyer = dict(SAMPLE_INVOICE["buyer"])  # type: ignore[arg-type]
+    buyer["legal_id"] = "987654321"  # no scheme
+    inv = {**SAMPLE_INVOICE, "seller": seller, "buyer": buyer}
+    root = _parse(inv)
+
+    seller_party = root.find(f".//{{{CAC}}}AccountingSupplierParty/{{{CAC}}}Party")
+    assert seller_party is not None
+    seller_cid = seller_party.find(f".//{{{CAC}}}PartyLegalEntity/{{{CBC}}}CompanyID")
+    assert seller_cid is not None
+    assert seller_cid.text == "0674415660"
+    assert seller_cid.get("schemeID") == "0208"
+
+    buyer_party = root.find(f".//{{{CAC}}}AccountingCustomerParty/{{{CAC}}}Party")
+    assert buyer_party is not None
+    buyer_cid = buyer_party.find(f".//{{{CAC}}}PartyLegalEntity/{{{CBC}}}CompanyID")
+    assert buyer_cid is not None
+    assert buyer_cid.text == "987654321"
+    assert buyer_cid.get("schemeID") is None
+
+
+def test_legal_entity_no_company_id_when_absent() -> None:
+    root = _parse(SAMPLE_INVOICE)
+    seller = root.find(f".//{{{CAC}}}AccountingSupplierParty/{{{CAC}}}Party")
+    assert seller is not None
+    assert seller.find(f".//{{{CAC}}}PartyLegalEntity/{{{CBC}}}CompanyID") is None
+
+
+def test_party_contact_emitted() -> None:
+    """BT-41..43 (seller) / BT-56..58 (buyer): Contact block is optional."""
+    seller = dict(SAMPLE_INVOICE["seller"])  # type: ignore[arg-type]
+    seller["contact_name"] = "Jane Doe"
+    seller["contact_email"] = "jane@example.be"
+    seller["contact_phone"] = "+32 14 00 00 00"
+    inv = {**SAMPLE_INVOICE, "seller": seller}
+    root = _parse(inv)
+
+    contact = root.find(f".//{{{CAC}}}AccountingSupplierParty/{{{CAC}}}Party/{{{CAC}}}Contact")
+    assert contact is not None
+    assert contact.find(f"{{{CBC}}}Name").text == "Jane Doe"  # type: ignore[union-attr]
+    assert contact.find(f"{{{CBC}}}ElectronicMail").text == "jane@example.be"  # type: ignore[union-attr]
+    assert contact.find(f"{{{CBC}}}Telephone").text == "+32 14 00 00 00"  # type: ignore[union-attr]
+
+
+def test_party_contact_omitted_when_absent() -> None:
+    root = _parse(SAMPLE_INVOICE)
+    seller_party = root.find(f".//{{{CAC}}}AccountingSupplierParty/{{{CAC}}}Party")
+    assert seller_party is not None
+    assert seller_party.find(f"{{{CAC}}}Contact") is None
+
+
+def test_party_contact_partial() -> None:
+    """Only the fields that are set are emitted."""
+    seller = dict(SAMPLE_INVOICE["seller"])  # type: ignore[arg-type]
+    seller["contact_email"] = "only@example.be"
+    inv = {**SAMPLE_INVOICE, "seller": seller}
+    root = _parse(inv)
+
+    contact = root.find(f".//{{{CAC}}}AccountingSupplierParty/{{{CAC}}}Party/{{{CAC}}}Contact")
+    assert contact is not None
+    assert contact.find(f"{{{CBC}}}ElectronicMail").text == "only@example.be"  # type: ignore[union-attr]
+    assert contact.find(f"{{{CBC}}}Name") is None
+    assert contact.find(f"{{{CBC}}}Telephone") is None
+
+
 def test_seller_no_vat_omits_tax_scheme() -> None:
     root = _parse(SAMPLE_INVOICE)
     supplier = root.find(f".//{{{CAC}}}AccountingSupplierParty/{{{CAC}}}Party")
@@ -225,6 +294,58 @@ def test_legal_monetary_total_with_vat() -> None:
 
 
 # --- Line items ---
+
+
+def test_line_service_date_single_day() -> None:
+    """A single `service_date` produces InvoicePeriod with equal Start/End."""
+    inv = {
+        **SAMPLE_INVOICE,
+        "lines": [
+            {
+                "id": "1",
+                "description": "Consulting",
+                "quantity": 1,
+                "unit_price": 100.0,
+                "tax_category": "E",
+                "tax_percent": 0,
+                "service_date": "2026-04-10",
+            },
+        ],
+    }
+    root = _parse(inv)
+    period = root.find(f".//{{{CAC}}}InvoiceLine/{{{CAC}}}InvoicePeriod")
+    assert period is not None
+    assert period.find(f"{{{CBC}}}StartDate").text == "2026-04-10"  # type: ignore[union-attr]
+    assert period.find(f"{{{CBC}}}EndDate").text == "2026-04-10"  # type: ignore[union-attr]
+
+
+def test_line_service_date_range() -> None:
+    """Separate start/end dates produce InvoicePeriod with distinct values."""
+    inv = {
+        **SAMPLE_INVOICE,
+        "lines": [
+            {
+                "id": "1",
+                "description": "Consulting",
+                "quantity": 1,
+                "unit_price": 100.0,
+                "tax_category": "E",
+                "tax_percent": 0,
+                "service_start_date": "2026-04-01",
+                "service_end_date": "2026-04-10",
+            },
+        ],
+    }
+    root = _parse(inv)
+    period = root.find(f".//{{{CAC}}}InvoiceLine/{{{CAC}}}InvoicePeriod")
+    assert period is not None
+    assert period.find(f"{{{CBC}}}StartDate").text == "2026-04-01"  # type: ignore[union-attr]
+    assert period.find(f"{{{CBC}}}EndDate").text == "2026-04-10"  # type: ignore[union-attr]
+
+
+def test_line_no_service_date_omits_invoice_period() -> None:
+    root = _parse(SAMPLE_INVOICE)
+    assert root.find(f".//{{{CAC}}}InvoiceLine/{{{CAC}}}InvoicePeriod") is None
 
 
 def test_line_item_tax_category() -> None:

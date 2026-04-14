@@ -8,41 +8,46 @@ Peppol Sender is a minimal Python scaffold for generating UBL 2.1 invoices from 
 
 ## Commands
 
+Dependencies are managed with `uv` (declared in `pyproject.toml`, pinned in
+`uv.lock`). Prefix every command with `uv run` or activate the venv first
+(`. .venv/bin/activate`).
+
 ```bash
 # Setup
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements-dev.txt   # includes runtime + dev deps
+uv sync                               # creates .venv, installs runtime + dev deps
 
 # Copy and fill in environment variables
 cp .env.example .env
 
 # Generate UBL XML from invoice JSON
-python cli.py create --input sample_invoice.json --out invoice.xml
+uv run python cli.py create --input sample_invoice.json --out invoice.xml
 
 # Validate an invoice XML
-python cli.py validate --file invoice.xml
+uv run python cli.py validate --file invoice.xml
 
 # Send invoice to Peppyrus API
-python cli.py send --file invoice.xml --recipient <RECIPIENT_ID>
+uv run python cli.py send --file invoice.xml --recipient <RECIPIENT_ID>
 
 # Fetch validation/transmission report for a sent message
-python cli.py report --id <MESSAGE_ID>
+uv run python cli.py report --id <MESSAGE_ID>
+
+# Run the web UI (http://127.0.0.1:5000)
+uv run python webapp/app.py
 
 # Lint and format
-ruff check .          # lint (add --fix for auto-fix)
-ruff format .         # format
+uv run ruff check .          # lint (add --fix for auto-fix)
+uv run ruff format .         # format
 
 # Type checking
-mypy .
+uv run mypy .
 
 # Tests
-pytest                    # run all tests
-pytest -k test_name       # run a single test by name
-pytest tests/test_ubl.py  # run a single test file
+uv run pytest                    # run all tests
+uv run pytest -k test_name       # run a single test by name
+uv run pytest tests/test_ubl.py  # run a single test file
 
-# Pre-commit hooks (ruff + mypy, installed via `pre-commit install`)
-pre-commit run --all-files
+# Pre-commit hooks (ruff + mypy, installed via `uv run pre-commit install`)
+uv run pre-commit run --all-files
 ```
 
 ## Architecture
@@ -52,7 +57,8 @@ The project follows a functional pipeline: **JSON → UBL XML → Validation →
 - **`cli.py`** — CLI entry point with subcommands: `create`, `validate`, `send`, `report`
 - **`peppol_sender/ubl.py`** — `generate_ubl(invoice: dict) -> bytes` builds EN-16931 compliant UBL 2.1 XML with proper `cbc:`/`cac:` namespaces
 - **`peppol_sender/validator.py`** — `validate_basic()` checks required EN-16931 elements; `validate_xsd()` validates against UBL 2.1 XSD schemas in `schemas/`
-- **`peppol_sender/api.py`** — Peppyrus API client with retry (3 attempts, exponential backoff on 5xx): `package_message()`, `send_message()`, `get_report()`
+- **`peppol_sender/api.py`** — Peppyrus API client. Idempotent GET helpers retry transient 5xx failures (3 attempts, exponential backoff via `urllib3.Retry`); `send_message()` POSTs are intentionally **not** retried to avoid duplicate PEPPOL transmissions (POST is not in `urllib3`'s default `allowed_methods`). Functions: `package_message()`, `send_message()`, `get_report()`, `get_org_info()`, `lookup_participant()`, `search_business_card()`
+- **`webapp/`** — Flask single-page invoice form. `app.py` exposes `/`, `/api/org-info`, `/api/lookup`, `/api/validate`, `/api/send`. Templates in `templates/`, vanilla JS + CSS in `static/`. State (recent customers, line templates, defaults, last invoice number) lives in browser localStorage.
 
 ## Key Design Decisions
 
@@ -68,5 +74,5 @@ The project follows a functional pipeline: **JSON → UBL XML → Validation →
 ## Reference
 
 - Peppyrus OpenAPI spec: `docs/openapi_peppyrus.json`
-- Development plan and roadmap: `docs/development_plan.md`
+- Invoice JSON schema reference: `docs/invoice-json-schema.md`
 - Test endpoint: `https://api.test.peppyrus.be/v1`

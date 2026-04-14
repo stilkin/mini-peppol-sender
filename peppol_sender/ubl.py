@@ -66,9 +66,24 @@ def _add_party(inv: ET.Element, wrapper_tag: str, party: dict, currency: str) ->
         ts = _sub(pts, "cac", "TaxScheme")
         _sub(ts, "cbc", "ID", "VAT")
 
-    # PartyLegalEntity
+    # PartyLegalEntity — RegistrationName + optional CompanyID (BT-30/BT-47)
     ple = _sub(p, "cac", "PartyLegalEntity")
     _sub(ple, "cbc", "RegistrationName", party.get("registration_name", party.get("name", "")))
+    legal_id = party.get("legal_id")
+    if legal_id:
+        scheme = party.get("legal_id_scheme")
+        attrs = {"schemeID": scheme} if scheme else {}
+        _sub(ple, "cbc", "CompanyID", legal_id, **attrs)
+
+    # Contact — BT-41..43 (seller) / BT-56..58 (buyer). All optional.
+    if party.get("contact_name") or party.get("contact_phone") or party.get("contact_email"):
+        contact = _sub(p, "cac", "Contact")
+        if party.get("contact_name"):
+            _sub(contact, "cbc", "Name", party["contact_name"])
+        if party.get("contact_phone"):
+            _sub(contact, "cbc", "Telephone", party["contact_phone"])
+        if party.get("contact_email"):
+            _sub(contact, "cbc", "ElectronicMail", party["contact_email"])
 
 
 def _dec(value: object) -> Decimal:
@@ -132,6 +147,16 @@ def _add_invoice_line(inv: ET.Element, line: dict, currency: str) -> Decimal:
 
     ext_amt = _dec(line.get("line_extension_amount", line.get("unit_price", 0) * qty))
     _sub(il, "cbc", "LineExtensionAmount", f"{ext_amt:.2f}", currencyID=currency)
+
+    # InvoicePeriod — BG-26 / BT-134..135. Single date supported via service_date;
+    # a range via service_start_date / service_end_date. BR-CO-25 requires both
+    # start and end to be present when either is, so we mirror if only one is set.
+    start_date = line.get("service_start_date") or line.get("service_date")
+    end_date = line.get("service_end_date") or line.get("service_date")
+    if start_date or end_date:
+        period = _sub(il, "cac", "InvoicePeriod")
+        _sub(period, "cbc", "StartDate", start_date or end_date)
+        _sub(period, "cbc", "EndDate", end_date or start_date)
 
     # Item
     item = _sub(il, "cac", "Item")
