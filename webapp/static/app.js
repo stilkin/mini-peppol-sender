@@ -744,6 +744,10 @@ function clearBusy(sel, label) {
 
 // ---------- Result panel rendering ----------
 
+// Callers MUST pre-escape any user- or network-controlled text before passing
+// it in `title` or `summary` — both fields are interpolated directly into
+// innerHTML to allow intentional `<strong>` / `<em>` styling. Use `escape(...)`
+// for any dynamic substring; see existing callsites for the pattern.
 function showResult({ kind, title, summary }) {
   const panel = $("#result-panel");
   panel.hidden = false;
