@@ -65,10 +65,17 @@
     border-bottom: 0.5pt solid #e4ddcb;
     vertical-align: top;
   }
+  table.lines th.num {
+    text-align: right;
+  }
   table.lines td.num {
     text-align: right;
     font-family: Menlo, Consolas, "Courier New", monospace;
     white-space: nowrap;
+  }
+  table.lines th.unit,
+  table.lines td.unit {
+    text-align: center;
   }
   table.lines .service-date {
     display: block;
@@ -157,7 +164,7 @@
       <tr>
         <th>Description</th>
         <th class="num">Qty</th>
-        <th>Unit</th>
+        <th class="unit">Unit</th>
         <th class="num">Unit price</th>
         <th class="num">Line total</th>
       </tr>
@@ -170,7 +177,7 @@
           {% if line.service_date %}<span class="service-date">Service date: {{ line.service_date }}</span>{% endif %}
         </td>
         <td class="num">{{ line.quantity }}</td>
-        <td>{{ line.unit }}</td>
+        <td class="unit">{{ line.unit }}</td>
         <td class="num">{{ line.unit_price }}</td>
         <td class="num">{{ line.line_total }}</td>
       </tr>
