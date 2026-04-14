@@ -21,6 +21,7 @@ Designed for a small business that needs to issue invoices themselves, not for e
 | HTTP client | `requests` + `urllib3.Retry` adapter |
 | Configuration | `python-dotenv` |
 | XSD validation | `xmlschema` (pure Python) with a cached schema instance |
+| PDF rendering | [WeasyPrint](https://weasyprint.org/) + Jinja2 (HTML template → PDF) |
 | Web UI backend | Flask 3 |
 | Web UI frontend | Jinja2 templates + vanilla JS + CSS (no build step, no framework) |
 | State (web UI) | browser localStorage — no server-side database |
@@ -127,10 +128,10 @@ Single-page invoice form with:
 - **Line items** with optional **per-line service date** (UBL `cac:InvoicePeriod`)
 - **Live totals** as you type; strict unit and VAT category dropdowns
 - **Auto-incrementing invoice number**
-- **Settings modal** for defaults (currency, payment terms, due-date offset, tax category), your **bank account** (IBAN, BIC, account holder — emitted as structured `cac:PaymentMeans` on every invoice to satisfy PEPPOL rule BR-50), and your personal contact info (name, email, phone)
+- **Settings modal** for defaults (currency, due-date offset, payment terms, tax category, **embed PDF on/off**), your **bank account** (IBAN, BIC, account holder — emitted as structured `cac:PaymentMeans` on every invoice to satisfy PEPPOL rule BR-50), and your personal contact info (name, email, phone)
 - **Preview PDF** button — see the human-readable representation that will be embedded in the invoice before you send it
-- **Validate before send** — FATAL rules block transmission and are shown inline
-- **Recipient auto-fill** from the buyer's PEPPOL endpoint when you look up or pick a recent customer
+- **Guarded Send** — the `Send invoice` button stays disabled until you click `Validate` and no FATAL rules remain; rules are shown inline and block transmission either way
+- **Recipient derived from the buyer** — the outgoing PEPPOL `recipient` is built on the fly from the buyer's `Scheme` + `Endpoint ID` fields, so you only enter the identifier once
 
 All persistent state lives in the browser. The Flask server is stateless beyond the environment variables.
 
@@ -140,8 +141,10 @@ All persistent state lives in the browser. The Flask server is stateless beyond 
 cli.py                     CLI entry point (create, validate, send, report)
 peppol_sender/
   ubl.py                   EN-16931 compliant UBL 2.1 XML generation
-  validator.py             Structural + XSD validation (cached schema)
+  pdf.py                   Jinja2 + WeasyPrint invoice PDF renderer
+  validator.py             Structural + XSD validation, local BR-50 + LOCAL-F001 rules
   api.py                   Peppyrus API client with retry
+  templates/invoice.html   PDF template used by pdf.py
 webapp/
   app.py                   Flask app and routes
   templates/index.html     Single-page invoice form

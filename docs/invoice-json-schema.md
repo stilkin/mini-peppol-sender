@@ -11,7 +11,7 @@ See [`sample_invoice.json`](../sample_invoice.json) for a complete, working exam
 {
   "invoice_number": "INV-2025-001",
   "issue_date": "2025-11-29",
-  "due_date": "2025-12-20",
+  "due_date": "2025-12-29",
   "invoice_type_code": "380",
   "currency": "EUR",
   "payment_terms": "Net 21 days",
