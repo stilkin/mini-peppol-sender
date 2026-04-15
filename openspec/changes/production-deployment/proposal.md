@@ -4,8 +4,8 @@ The Flask webapp currently starts with Werkzeug's development server, which prin
 
 ## What Changes
 
-- Add **gunicorn** as an optional dependency (`[project.optional-dependencies].prod`) and document a production launch command for users who already have a working Python environment.
-- Add a **Dockerfile** based on `python:3.12-slim` that installs WeasyPrint's native libraries, runs `uv sync --frozen --no-dev --extra prod`, and uses gunicorn as the container entrypoint.
+- Add **gunicorn** under a new PEP 735 `[dependency-groups].prod` entry in `pyproject.toml` (alongside the existing `dev` group), and document a production launch command for users who already have a working Python environment.
+- Add a **Dockerfile** based on `python:3.12-slim-bookworm` that installs WeasyPrint's native libraries, runs `uv sync --frozen --no-dev --group prod`, and uses gunicorn as the container entrypoint.
 - Add a **`.dockerignore`** to keep the build context small.
 - Add a **`docker-compose.yml`** that wires the image to an `.env` file and binds the webapp to `127.0.0.1:5000` by default (not `0.0.0.0`), so the out-of-the-box configuration is safe on a machine without a reverse proxy.
 - Update **README.md** with three clearly-labeled run modes — *Develop*, *Run with Python (production)*, *Run with Docker (production)* — and a short **Security** note stating that the webapp has no authentication and must be bound to localhost or placed behind an authenticating reverse proxy if exposed beyond the local machine.

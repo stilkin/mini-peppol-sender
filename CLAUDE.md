@@ -35,7 +35,9 @@ uv run python cli.py send --file invoice.xml --recipient <RECIPIENT_ID>
 uv run python cli.py report --id <MESSAGE_ID>
 
 # Run the web UI (http://127.0.0.1:5000)
-uv run python webapp/app.py
+uv run python webapp/app.py                                      # dev server (prints Werkzeug warning)
+uv run gunicorn webapp.app:app -b 127.0.0.1:5000 --workers 2     # prod; requires `uv sync --group prod`
+docker compose up --build                                        # prod, containerized (see README "Security")
 
 # Lint and format
 uv run ruff check .          # lint (add --fix for auto-fix)

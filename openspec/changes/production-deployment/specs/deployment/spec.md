@@ -5,7 +5,7 @@
 The project SHALL provide gunicorn as an installable optional dependency and document a production launch command that runs the Flask webapp without the Werkzeug development-server warning.
 
 #### Scenario: Installing the prod extra
-- **WHEN** a user runs `uv sync --extra prod` in the project root
+- **WHEN** a user runs `uv sync --group prod` in the project root
 - **THEN** gunicorn is installed into the project's virtual environment and available on `PATH` as `gunicorn` when the venv is active (or via `uv run gunicorn`)
 
 #### Scenario: Launching the webapp under gunicorn
@@ -17,7 +17,7 @@ The project SHALL provide gunicorn as an installable optional dependency and doc
 - **THEN** the Flask development server still starts exactly as it does today (this requirement does not remove or modify the existing dev command)
 
 #### Scenario: Tests do not require gunicorn
-- **WHEN** a user runs `uv sync` (without `--extra prod`) and then `uv run pytest`
+- **WHEN** a user runs `uv sync` (without `--group prod`) and then `uv run pytest`
 - **THEN** the test suite runs to completion without requiring gunicorn to be installed
 
 ### Requirement: Docker image for zero-install deployment

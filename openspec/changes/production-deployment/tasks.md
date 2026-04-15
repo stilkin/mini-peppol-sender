@@ -1,7 +1,7 @@
 ## 1. Gunicorn as an optional dependency
 
-- [ ] 1.1 Add `[project.optional-dependencies].prod = ["gunicorn>=23.0"]` to `pyproject.toml`
-- [ ] 1.2 Run `uv sync --extra prod` and verify `uv.lock` is updated and committed
+- [ ] 1.1 Add `[dependency-groups].prod = ["gunicorn>=23.0"]` to `pyproject.toml` (alongside the existing `dev` group)
+- [ ] 1.2 Run `uv sync --group prod` and verify `uv.lock` is updated and committed
 - [ ] 1.3 Verify `uv run gunicorn webapp.app:app -b 127.0.0.1:5000 --workers 2` starts the app, answers `GET /`, and does NOT emit the Werkzeug "development server" warning
 - [ ] 1.4 Verify that `uv sync` (without the `prod` extra) still works and `uv run pytest` passes without gunicorn installed
 
@@ -10,7 +10,7 @@
 - [ ] 2.1 Create `Dockerfile` based on `python:3.12-slim-bookworm`
 - [ ] 2.2 Install WeasyPrint native deps via apt (`libpango-1.0-0`, `libpangoft2-1.0-0`, `libharfbuzz0b`, `libcairo2`, `libgdk-pixbuf-2.0-0`, `libffi-dev`, `shared-mime-info`, `fonts-dejavu-core` — cross-check against WeasyPrint upstream install docs and trim/extend as needed)
 - [ ] 2.3 Install `uv` in the image (pinned version, e.g. via the official `ghcr.io/astral-sh/uv` copy-from pattern or `pip install uv==<pin>`)
-- [ ] 2.4 Set `WORKDIR /app`, copy `pyproject.toml` + `uv.lock` first, run `uv sync --frozen --no-dev --extra prod` as a cached layer
+- [ ] 2.4 Set `WORKDIR /app`, copy `pyproject.toml` + `uv.lock` first, run `uv sync --frozen --no-dev --group prod` as a cached layer
 - [ ] 2.5 Copy application source (`webapp/`, `peppol_sender/`, `schemas/`, `cli.py`) in a later layer so source edits don't invalidate the dependency layer
 - [ ] 2.6 `EXPOSE 5000` and set `CMD ["uv", "run", "gunicorn", "webapp.app:app", "-b", "0.0.0.0:5000", "--workers", "2", "--access-logfile", "-", "--error-logfile", "-"]`
 - [ ] 2.7 Create a non-root `appuser` in the image and `USER appuser` before `CMD`

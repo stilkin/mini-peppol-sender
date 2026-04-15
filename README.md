@@ -118,10 +118,34 @@ See [`docs/invoice-json-schema.md`](docs/invoice-json-schema.md) for the full JS
 
 ### Web UI
 
+#### Development
+
 ```bash
 uv run python webapp/app.py
 # open http://127.0.0.1:5000
 ```
+
+Flask's built-in dev server. Fine for local iteration; prints a Werkzeug warning because it is not a production server.
+
+#### Production (Python)
+
+```bash
+uv sync --group prod
+uv run gunicorn webapp.app:app -b 127.0.0.1:5000 --workers 2
+# open http://127.0.0.1:5000
+```
+
+Same app, served by gunicorn — no dev-server warning. Requires a working Python + `uv` environment with the system-level Pango/Cairo libraries WeasyPrint needs.
+
+#### Production (Docker)
+
+```bash
+cp .env.example .env   # fill in PEPPYRUS_* values
+docker compose up --build
+# open http://127.0.0.1:5000
+```
+
+The image bundles Python, the pinned dependencies, and all native libraries required for PDF rendering — no host install beyond Docker itself. The compose file binds the app to `127.0.0.1` on the host; see **Security** below before exposing it further.
 
 Single-page invoice form with:
 
@@ -139,6 +163,12 @@ Single-page invoice form with:
 - **Recipient derived from the buyer** — the outgoing PEPPOL `recipient` is built on the fly from the buyer's `Scheme` + `Endpoint ID` fields, so you only enter the identifier once
 
 All persistent state lives in the browser. The Flask server is stateless beyond the environment variables.
+
+## Security
+
+The webapp has **no built-in authentication**. Anyone who can reach the HTTP port can create, validate, and send invoices signed with your Peppyrus API key.
+
+All documented run modes bind the app to `127.0.0.1`, so out of the box it is only reachable from the machine it runs on. If you want to expose it beyond localhost (LAN or internet), you **must** put an authenticating reverse proxy (Caddy, Traefik, nginx + basic-auth, your SSO of choice) in front of it. Changing the bind address to `0.0.0.0` without such a proxy is unsafe.
 
 ## Project structure
 
