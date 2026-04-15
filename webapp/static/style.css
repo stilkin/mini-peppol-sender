@@ -81,7 +81,12 @@ button { font-family: inherit; }
   margin: 8px 0 0;
 }
 
-.settings-btn {
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.icon-btn {
   background: transparent;
   border: 1px solid var(--rule);
   border-radius: 0;
@@ -96,7 +101,7 @@ button { font-family: inherit; }
   justify-content: center;
 }
 
-.settings-btn:hover {
+.icon-btn:hover {
   border-color: var(--oxblood);
   color: var(--oxblood);
   background: rgba(124, 45, 45, 0.04);

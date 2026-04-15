@@ -58,6 +58,15 @@ const UNIT_CODES = [
 ];
 const UNIT_CODE_SET = new Set(UNIT_CODES.map(([c]) => c));
 
+// ---------- Dirty tracking ----------
+// Flipped to `true` after a successful Send. Any user input on a form field
+// bubbles up to the listener wired in init() and flips it back to `false`.
+// Programmatic `.value = ...` assignments (e.g. the auto-advanced invoice
+// number after send) do NOT fire input events, so they don't trip this.
+// The clearInvoice() flow reads this to decide whether to confirm before
+// wiping the form — a freshly-sent invoice is safe to clear without asking.
+let invoiceSent = false;
+
 // ---------- Tiny helpers ----------
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -722,6 +731,7 @@ async function doSend() {
     renderCustomerDropdown();
     lsSet(LS_KEYS.lastNumber, invoice.invoice_number);
     $("#invoice_number").value = nextInvoiceNumber();
+    invoiceSent = true;
   } catch (err) {
     showResult({ kind: "error", title: "Send failed", summary: escape(String(err)) });
   } finally {
@@ -796,6 +806,51 @@ function escape(s) {
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
+}
+
+// ---------- Clear / new invoice ----------
+
+// Reset the form to a blank "new invoice" state. Preserves all persistent state
+// (seller info, bank details, defaults, saved customers, line templates, invoice
+// counter). Only wipes the per-invoice fields the user was composing.
+function clearInvoice() {
+  // Buyer block — setBuyer({}) clears all [data-buyer] inputs
+  setBuyer({});
+  // Restore the one buyer field that has a meaningful HTML default
+  $('[data-buyer="endpoint_scheme"]').value = "0208";
+
+  // Lookup controls — reset to their initial state
+  $("#lookup-country").value = "BE";
+  $("#lookup-vat").value = "";
+  $("#lookup-vat").removeAttribute("aria-invalid");
+
+  // Line items — remove all rows, add a single fresh one
+  $("#line-items-body").innerHTML = "";
+  $("#line-items-body").appendChild(makeLineRow());
+
+  // Invoice meta — advance counter, reset dates and defaults
+  const d = getDefaults();
+  $("#invoice_number").value = nextInvoiceNumber();
+  $("#issue_date").value = todayISO();
+  $("#due_date").value = addDays(todayISO(), d.due_days);
+  $("#currency").value = d.currency;
+  $("#payment_terms").value = d.payment_terms;
+
+  // Dropdowns back to their placeholder option
+  $("#recent-customers").value = "";
+  $("#template-select").value = "";
+
+  // Recalculate totals (now 0.00) and hide any lingering result panel
+  recalcTotals();
+  const panel = $("#result-panel");
+  panel.hidden = true;
+  panel.innerHTML = "";
+
+  // Send gate back to "needs validation"
+  setSendGate("initial", "Click Validate first");
+
+  // Finally, the form is fresh again — no unsaved send state
+  invoiceSent = false;
 }
 
 // ---------- Settings modal ----------
@@ -940,6 +995,25 @@ function init() {
   $("#settings-btn").addEventListener("click", openSettings);
   $("#settings-cancel").addEventListener("click", () => $("#settings-modal").close());
   $("#settings-save").addEventListener("click", saveSettingsFromModal);
+
+  // New / clear invoice — confirm only when the current draft hasn't been sent yet
+  $("#new-btn").addEventListener("click", () => {
+    if (invoiceSent) {
+      clearInvoice();
+      return;
+    }
+    if (confirm("Start a new invoice? Your current draft will be discarded.")) {
+      clearInvoice();
+    }
+  });
+
+  // Dirty tracking — any real user input on the invoice composer clears the
+  // "already sent" flag so the next clearInvoice() call prompts again.
+  // Programmatic .value = assignments don't fire input events, so the
+  // post-send auto-advance of #invoice_number won't trip this.
+  const paper = document.querySelector("main.paper");
+  paper.addEventListener("input", () => { invoiceSent = false; });
+  paper.addEventListener("change", () => { invoiceSent = false; });
 
   // Seller info
   loadSeller();
