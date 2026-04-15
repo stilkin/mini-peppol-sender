@@ -15,6 +15,9 @@ from typing import Any
 
 import jinja2
 
+from peppol_sender import i18n
+from peppol_sender.epc_qr import build_epc_payload, render_qr_svg
+
 _TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 
 
@@ -27,9 +30,12 @@ def _build_view_model(invoice: dict[str, Any]) -> dict[str, Any]:
 
     Totals use the same (tax_category, tax_percent) grouping and Decimal
     rounding as ubl.py:_add_tax_total, so the PDF's grand total equals the
-    XML's LegalMonetaryTotal/PayableAmount byte-for-byte.
+    XML's LegalMonetaryTotal/PayableAmount byte-for-byte (modulo the
+    BeNeLux string format — cross-checks parse both sides back to Decimal).
     """
     currency = invoice.get("currency", "EUR")
+    lang = (invoice.get("language") or "en").lower()
+    labels = i18n.all_labels(lang)
     lines = invoice.get("lines", [])
 
     groups: dict[tuple[str, Decimal], Decimal] = defaultdict(lambda: Decimal("0"))
@@ -42,15 +48,17 @@ def _build_view_model(invoice: dict[str, Any]) -> dict[str, Any]:
         ext = _dec(line.get("line_extension_amount", price * qty))
         cat = line.get("tax_category", "E")
         pct = Decimal(str(line.get("tax_percent", 0)))
+        raw_unit = line.get("unit", "EA")
         line_sum += ext
         groups[(cat, pct)] += ext
         display_lines.append(
             {
                 "description": line.get("description", ""),
                 "quantity": f"{qty:g}",
-                "unit": line.get("unit", "EA"),
-                "unit_price": f"{price:.2f}",
-                "line_total": f"{ext:.2f}",
+                "unit": raw_unit,
+                "unit_label": i18n.unit_label(lang, raw_unit),
+                "unit_price": i18n.format_amount(_dec(price)),
+                "line_total": i18n.format_amount(ext),
                 "service_date": line.get("service_date"),
             }
         )
@@ -59,6 +67,11 @@ def _build_view_model(invoice: dict[str, Any]) -> dict[str, Any]:
     for (_cat, pct), taxable in groups.items():
         tax_total += _dec(taxable * pct / 100)
 
+    grand_total_dec = line_sum + tax_total
+
+    epc_payload = build_epc_payload(invoice, grand_total_dec)
+    epc_qr_svg = render_qr_svg(epc_payload) if epc_payload else None
+
     return {
         "invoice": invoice,
         "seller": invoice.get("seller", {}),
@@ -66,9 +79,12 @@ def _build_view_model(invoice: dict[str, Any]) -> dict[str, Any]:
         "payment_means": invoice.get("payment_means"),
         "lines": display_lines,
         "currency": currency,
-        "subtotal": f"{line_sum:.2f}",
-        "tax_total": f"{tax_total:.2f}",
-        "grand_total": f"{line_sum + tax_total:.2f}",
+        "language": lang,
+        "labels": labels,
+        "subtotal": i18n.format_amount(line_sum),
+        "tax_total": i18n.format_amount(tax_total),
+        "grand_total": i18n.format_amount(grand_total_dec),
+        "epc_qr_svg": epc_qr_svg,
     }
 
 

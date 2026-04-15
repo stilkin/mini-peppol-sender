@@ -74,6 +74,7 @@ See [`sample_invoice.json`](../sample_invoice.json) for a complete, working exam
 | `due_date` | string | Payment due date (optional) |
 | `invoice_type_code` | string | UBL type code (default: `380` = commercial invoice) |
 | `currency` | string | ISO 4217 currency code (e.g. `EUR`) |
+| `language` | string | PDF display language (optional): `en`, `nl`, `fr`, or `de`. Default `en`. Affects the rendered PDF only — translated labels and human-readable unit names. The underlying UBL XML and the EPC QR payload are unaffected. Unknown codes fall back to English |
 | `payment_terms` | string | Free-text payment terms; multi-line supported. Do **not** put the IBAN here — use `payment_means` |
 | `payment_means` | object | Structured bank payment details (optional). See [Payment means](#payment-means) |
 

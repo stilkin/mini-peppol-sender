@@ -1,0 +1,9 @@
+services:
+  webapp:
+    build: .
+    image: peppify:latest
+    env_file: .env
+    ports:
+      # Loopback-only by default — see the Security section in README.md.
+      - "127.0.0.1:5000:5000"
+    restart: unless-stopped

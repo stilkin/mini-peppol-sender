@@ -13,9 +13,14 @@
       <h1>Peppify</h1>
       <p class="subtitle">Invoice Composer · est. 2026</p>
     </div>
-    <button class="settings-btn" id="settings-btn" aria-label="Settings" title="Defaults">
-      <span class="settings-icon">⚙</span>
-    </button>
+    <div class="header-actions">
+      <button class="icon-btn" id="new-btn" type="button" aria-label="New invoice" title="Start a new invoice">
+        <span class="icon-glyph">＋</span>
+      </button>
+      <button class="icon-btn" id="settings-btn" type="button" aria-label="Settings" title="Defaults">
+        <span class="icon-glyph">⚙</span>
+      </button>
+    </div>
   </header>
 
   <main class="paper">
@@ -41,9 +46,12 @@
         <div class="bill-to-controls">
           <div class="control-group">
             <label class="micro">Recent</label>
-            <select id="recent-customers" aria-label="Recent customers">
-              <option value="">— select customer —</option>
-            </select>
+            <div class="dropdown-with-delete">
+              <select id="recent-customers" aria-label="Recent customers">
+                <option value="">— select customer —</option>
+              </select>
+              <button type="button" id="delete-customer-btn" class="delete-btn" title="Delete selected customer" aria-label="Delete selected customer" disabled>×</button>
+            </div>
           </div>
           <div class="control-group lookup-group">
             <label class="micro">Look up by VAT</label>
@@ -114,10 +122,21 @@
               <input type="email" data-buyer="contact_email">
             </label>
           </div>
-          <label class="field">
-            <span class="micro">Contact phone (optional)</span>
-            <input type="tel" data-buyer="contact_phone" class="mono">
-          </label>
+          <div class="field-row">
+            <label class="field">
+              <span class="micro">Contact phone (optional)</span>
+              <input type="tel" data-buyer="contact_phone" class="mono">
+            </label>
+            <label class="field">
+              <span class="micro">PDF language</span>
+              <select id="invoice-language" aria-label="PDF language">
+                <option value="en">English</option>
+                <option value="nl">Nederlands</option>
+                <option value="fr">Français</option>
+                <option value="de">Deutsch</option>
+              </select>
+            </label>
+          </div>
         </div>
       </section>
 
@@ -240,6 +259,15 @@
           <span class="micro">Due date offset (days)</span>
           <input type="number" id="default-due-days" class="mono" min="0">
         </label>
+        <label class="field">
+          <span class="micro">PDF language</span>
+          <select id="default-language">
+            <option value="en">English</option>
+            <option value="nl">Nederlands</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+          </select>
+        </label>
       </div>
 
       <label class="field">
@@ -300,6 +328,13 @@
       <div class="modal-actions">
         <button type="button" id="settings-cancel" class="btn btn-secondary">Cancel</button>
         <button type="button" id="settings-save" class="btn btn-primary">Save</button>
+      </div>
+
+      <h2 class="settings-subhead danger-zone-head">Danger zone</h2>
+      <p class="meta">Wipes every Peppify setting in this browser — saved defaults, bank details, contact info, recent customers, line templates, and the invoice counter. Cannot be undone.</p>
+
+      <div class="danger-zone">
+        <button type="button" id="factory-reset-btn" class="btn btn-danger">Reset all Peppify data</button>
       </div>
     </form>
   </dialog>

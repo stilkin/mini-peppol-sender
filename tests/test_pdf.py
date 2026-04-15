@@ -10,6 +10,12 @@ CBC = "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
 CAC = "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
 
 
+def _parse_benelux(s: str) -> Decimal:
+    """Parse a BeNeLux-formatted amount (`1.234,56`) back to Decimal for cross-checks
+    against the ASCII-formatted totals emitted by the UBL XML generator."""
+    return Decimal(s.replace(".", "").replace(",", "."))
+
+
 SAMPLE_INVOICE: dict = {
     "invoice_number": "INV-PDF-001",
     "issue_date": "2026-04-14",
@@ -65,12 +71,12 @@ SAMPLE_INVOICE: dict = {
 
 def test_view_model_minimal_totals() -> None:
     vm = _build_view_model(SAMPLE_INVOICE)
-    assert vm["subtotal"] == "1000.00"
-    assert vm["tax_total"] == "0.00"
-    assert vm["grand_total"] == "1000.00"
+    assert vm["subtotal"] == "1.000,00"
+    assert vm["tax_total"] == "0,00"
+    assert vm["grand_total"] == "1.000,00"
     assert vm["currency"] == "EUR"
     assert len(vm["lines"]) == 1
-    assert vm["lines"][0]["line_total"] == "1000.00"
+    assert vm["lines"][0]["line_total"] == "1.000,00"
     assert vm["lines"][0]["service_date"] == "2026-04-10"
 
 
@@ -81,9 +87,9 @@ def test_view_model_with_standard_vat() -> None:
     }
     vm = _build_view_model(inv)
     # 2 * 50 = 100; 21% = 21.00; total 121.00
-    assert vm["subtotal"] == "100.00"
-    assert vm["tax_total"] == "21.00"
-    assert vm["grand_total"] == "121.00"
+    assert vm["subtotal"] == "100,00"
+    assert vm["tax_total"] == "21,00"
+    assert vm["grand_total"] == "121,00"
 
 
 def test_view_model_mixed_rates() -> None:
@@ -98,13 +104,17 @@ def test_view_model_mixed_rates() -> None:
     # Group 1: 100 * 21% = 21.00
     # Group 2: 200 * 6%  = 12.00
     # Subtotal 300, tax 33, grand 333
-    assert vm["subtotal"] == "300.00"
-    assert vm["tax_total"] == "33.00"
-    assert vm["grand_total"] == "333.00"
+    assert vm["subtotal"] == "300,00"
+    assert vm["tax_total"] == "33,00"
+    assert vm["grand_total"] == "333,00"
 
 
 def test_view_model_totals_match_ubl_xml() -> None:
-    """Regression: the PDF grand total MUST equal XML LegalMonetaryTotal/PayableAmount."""
+    """Regression: the PDF grand total MUST equal XML LegalMonetaryTotal/PayableAmount.
+
+    The PDF view model formats in BeNeLux notation while the UBL XML uses ASCII,
+    so cross-checks parse both sides back to Decimal before comparing.
+    """
     vm = _build_view_model(SAMPLE_INVOICE)
     xml = generate_ubl(SAMPLE_INVOICE)
     root = ET.fromstring(xml)
@@ -112,10 +122,12 @@ def test_view_model_totals_match_ubl_xml() -> None:
     assert lmt is not None
     payable = lmt.find(f"{{{CBC}}}PayableAmount")
     assert payable is not None
-    assert payable.text == vm["grand_total"]
+    assert payable.text is not None
+    assert _parse_benelux(vm["grand_total"]) == Decimal(payable.text)
     tax_total_el = root.find(f"{{{CAC}}}TaxTotal/{{{CBC}}}TaxAmount")
     assert tax_total_el is not None
-    assert tax_total_el.text == vm["tax_total"]
+    assert tax_total_el.text is not None
+    assert _parse_benelux(vm["tax_total"]) == Decimal(tax_total_el.text)
 
 
 def test_view_model_totals_match_ubl_xml_mixed_rates() -> None:
@@ -131,13 +143,38 @@ def test_view_model_totals_match_ubl_xml_mixed_rates() -> None:
     root = ET.fromstring(xml)
     payable = root.find(f"{{{CAC}}}LegalMonetaryTotal/{{{CBC}}}PayableAmount")
     assert payable is not None
-    assert payable.text == vm["grand_total"]
+    assert payable.text is not None
+    assert _parse_benelux(vm["grand_total"]) == Decimal(payable.text)
 
 
 def test_view_model_omits_payment_means_when_absent() -> None:
     inv = {k: v for k, v in SAMPLE_INVOICE.items() if k != "payment_means"}
     vm = _build_view_model(inv)
     assert vm["payment_means"] is None
+
+
+def test_view_model_includes_epc_qr_for_eur_credit_transfer() -> None:
+    vm = _build_view_model(SAMPLE_INVOICE)
+    assert vm["epc_qr_svg"] is not None
+    assert vm["epc_qr_svg"].startswith("<svg")
+
+    from peppol_sender.pdf import _env
+
+    html = _env.get_template("invoice.html").render(**vm)
+    assert 'class="payment-qr"' in html  # QR container rendered into markup
+    assert "Scan with your banking app" in html
+
+
+def test_view_model_omits_epc_qr_for_non_eur_invoice() -> None:
+    inv = {**SAMPLE_INVOICE, "currency": "USD"}
+    vm = _build_view_model(inv)
+    assert vm["epc_qr_svg"] is None
+
+    from peppol_sender.pdf import _env
+
+    html = _env.get_template("invoice.html").render(**vm)
+    assert 'class="payment-qr"' not in html
+    assert "Scan with your banking app" not in html
 
 
 def test_view_model_line_extension_amount_override() -> None:
@@ -156,8 +193,108 @@ def test_view_model_line_extension_amount_override() -> None:
         ],
     }
     vm = _build_view_model(inv)
-    assert vm["lines"][0]["line_total"] == "400.00"
-    assert vm["subtotal"] == "400.00"
+    assert vm["lines"][0]["line_total"] == "400,00"
+    assert vm["subtotal"] == "400,00"
+
+
+# --- language / translation ---
+
+
+def test_view_model_defaults_to_english_when_language_absent() -> None:
+    vm = _build_view_model(SAMPLE_INVOICE)
+    assert vm["language"] == "en"
+    assert vm["labels"]["invoice"] == "Invoice"
+    assert vm["labels"]["total_due"] == "Total due"
+    # Unit code HUR → "hour" in EN
+    assert vm["lines"][0]["unit_label"] == "hour"
+
+
+def test_view_model_dutch_labels_and_unit() -> None:
+    inv = {**SAMPLE_INVOICE, "language": "nl"}
+    vm = _build_view_model(inv)
+    assert vm["language"] == "nl"
+    assert vm["labels"]["invoice"] == "Factuur"
+    assert vm["labels"]["total_due"] == "Te betalen"
+    assert vm["lines"][0]["unit_label"] == "uur"
+
+
+def test_view_model_french_labels_and_unit() -> None:
+    inv = {**SAMPLE_INVOICE, "language": "fr"}
+    vm = _build_view_model(inv)
+    assert vm["labels"]["invoice"] == "Facture"
+    assert vm["labels"]["subtotal"] == "Sous-total"
+    assert vm["lines"][0]["unit_label"] == "heure"
+
+
+def test_view_model_german_labels_and_unit() -> None:
+    inv = {**SAMPLE_INVOICE, "language": "de"}
+    vm = _build_view_model(inv)
+    assert vm["labels"]["invoice"] == "Rechnung"
+    assert vm["labels"]["description"] == "Beschreibung"
+    assert vm["lines"][0]["unit_label"] == "Stunde"
+
+
+def test_view_model_unknown_language_falls_back_to_english() -> None:
+    inv = {**SAMPLE_INVOICE, "language": "zz"}
+    vm = _build_view_model(inv)
+    assert vm["labels"]["invoice"] == "Invoice"
+    assert vm["lines"][0]["unit_label"] == "hour"
+
+
+def test_view_model_case_insensitive_language_code() -> None:
+    inv = {**SAMPLE_INVOICE, "language": "NL"}
+    vm = _build_view_model(inv)
+    assert vm["language"] == "nl"
+    assert vm["labels"]["invoice"] == "Factuur"
+
+
+def test_rendered_html_contains_translated_labels_nl() -> None:
+    from peppol_sender.pdf import _env
+
+    inv = {**SAMPLE_INVOICE, "language": "nl"}
+    vm = _build_view_model(inv)
+    html = _env.get_template("invoice.html").render(**vm)
+    assert "Factuur" in html
+    assert "Omschrijving" in html
+    assert "Te betalen" in html
+    assert "uur" in html  # translated unit code
+    # The raw code HUR should NOT appear as a standalone cell value
+    assert ">HUR<" not in html
+
+
+def test_rendered_html_contains_translated_labels_de() -> None:
+    from peppol_sender.pdf import _env
+
+    inv = {**SAMPLE_INVOICE, "language": "de"}
+    vm = _build_view_model(inv)
+    html = _env.get_template("invoice.html").render(**vm)
+    assert "Rechnung" in html
+    assert "Beschreibung" in html
+    assert "Gesamtbetrag" in html
+    assert "Stunde" in html
+
+
+def test_rendered_html_contains_translated_labels_fr() -> None:
+    from peppol_sender.pdf import _env
+
+    inv = {**SAMPLE_INVOICE, "language": "fr"}
+    vm = _build_view_model(inv)
+    html = _env.get_template("invoice.html").render(**vm)
+    assert "Facture" in html
+    assert "Sous-total" in html
+    assert "Total à payer" in html
+    assert "heure" in html
+
+
+def test_rendered_html_unknown_language_still_renders() -> None:
+    from peppol_sender.pdf import _env
+
+    inv = {**SAMPLE_INVOICE, "language": "zz"}
+    vm = _build_view_model(inv)
+    html = _env.get_template("invoice.html").render(**vm)
+    # Falls back to English labels; nothing raises
+    assert "Invoice" in html
+    assert "Description" in html
 
 
 def test_dec_rounding_matches_ubl() -> None:

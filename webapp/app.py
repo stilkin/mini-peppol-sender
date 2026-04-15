@@ -37,6 +37,14 @@ _DOCUMENT_TYPE = (
 app = Flask(__name__)
 
 
+@app.after_request
+def _set_security_headers(response: Any) -> Any:
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    return response
+
+
 def _creds() -> tuple[str, str, str] | None:
     """Read Peppyrus credentials from env. Returns None if API key is missing."""
     api_key = os.getenv("PEPPYRUS_API_KEY")
@@ -153,4 +161,5 @@ def api_send() -> tuple[Any, int]:
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    debug = os.getenv("FLASK_DEBUG", "").lower() in ("1", "true", "yes")
+    app.run(host="127.0.0.1", port=5000, debug=debug)

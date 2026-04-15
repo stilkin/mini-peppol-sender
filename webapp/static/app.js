@@ -17,11 +17,14 @@ const LS_KEYS = {
 
 const DEFAULT_DEFAULTS = {
   currency: "EUR",
+  language: "en",
   payment_terms: "Net 21 days",
   due_days: 21,
   tax_category: "E",
   tax_percent: 0,
 };
+
+const SUPPORTED_LANGUAGES = ["en", "nl", "fr", "de"];
 
 // UBL VAT category codes (D.16B). Visible label = "code — meaning".
 const TAX_CATEGORIES = [
@@ -57,6 +60,15 @@ const UNIT_CODES = [
   ["KWH", "KWH — kilowatt-hour"],
 ];
 const UNIT_CODE_SET = new Set(UNIT_CODES.map(([c]) => c));
+
+// ---------- Dirty tracking ----------
+// Flipped to `true` after a successful Send. Any user input on a form field
+// bubbles up to the listener wired in init() and flips it back to `false`.
+// Programmatic `.value = ...` assignments (e.g. the auto-advanced invoice
+// number after send) do NOT fire input events, so they don't trip this.
+// The clearInvoice() flow reads this to decide whether to confirm before
+// wiping the form — a freshly-sent invoice is safe to clear without asking.
+let invoiceSent = false;
 
 // ---------- Tiny helpers ----------
 
@@ -150,14 +162,25 @@ function customerKey(buyer) {
   return null;
 }
 
-function saveCustomer(buyer) {
+function saveCustomer(buyer, language) {
   const key = customerKey(buyer);
   if (!key) return;
   const customers = loadCustomers();
   const existing = customers.findIndex((c) => customerKey(c) === key);
   if (existing >= 0) customers.splice(existing, 1);
-  customers.unshift(buyer);
+  // Persist the chosen PDF language on the record so a subsequent load
+  // auto-fills it. Non-enumerable on setBuyer() because setBuyer only touches
+  // [data-buyer] DOM fields.
+  const record = language ? { ...buyer, language } : { ...buyer };
+  customers.unshift(record);
   lsSet(LS_KEYS.customers, customers.slice(0, 50));
+}
+
+function deleteCustomerAt(index) {
+  const customers = loadCustomers();
+  if (index < 0 || index >= customers.length) return;
+  customers.splice(index, 1);
+  lsSet(LS_KEYS.customers, customers);
 }
 
 function renderCustomerDropdown() {
@@ -596,6 +619,7 @@ function collectInvoice() {
     due_date: readDateInput($("#due_date")) || undefined,
     invoice_type_code: "380",
     currency: ($("#currency").value || "EUR").toUpperCase(),
+    language: ($("#invoice-language").value || "en").toLowerCase(),
     payment_terms: $("#payment_terms").value || undefined,
     payment_means,
     seller,
@@ -717,11 +741,12 @@ async function doSend() {
       title: "Invoice sent",
       summary: `Message ID <strong>${escape(msgId)}</strong> · Folder <strong>${escape(r.folder || "—")}</strong>`,
     });
-    // On success: persist customer + advance invoice number
-    saveCustomer(invoice.buyer);
+    // On success: persist customer (with their PDF language) + advance invoice number
+    saveCustomer(invoice.buyer, invoice.language);
     renderCustomerDropdown();
     lsSet(LS_KEYS.lastNumber, invoice.invoice_number);
     $("#invoice_number").value = nextInvoiceNumber();
+    invoiceSent = true;
   } catch (err) {
     showResult({ kind: "error", title: "Send failed", summary: escape(String(err)) });
   } finally {
@@ -744,6 +769,10 @@ function clearBusy(sel, label) {
 
 // ---------- Result panel rendering ----------
 
+// Callers MUST pre-escape any user- or network-controlled text before passing
+// it in `title` or `summary` — both fields are interpolated directly into
+// innerHTML to allow intentional `<strong>` / `<em>` styling. Use `escape(...)`
+// for any dynamic substring; see existing callsites for the pattern.
 function showResult({ kind, title, summary }) {
   const panel = $("#result-panel");
   panel.hidden = false;
@@ -794,11 +823,70 @@ function escape(s) {
     .replaceAll(">", "&gt;");
 }
 
+// ---------- Factory reset ----------
+
+// Wipes every Peppify key from localStorage and reloads the page. Reload is
+// the cleanest way to reinitialize every UI state at once (seller card,
+// dropdowns, counter, form defaults) without manually reversing every init()
+// side effect. Guarded by a confirm() in the caller.
+function factoryReset() {
+  Object.values(LS_KEYS).forEach((key) => localStorage.removeItem(key));
+  window.location.reload();
+}
+
+// ---------- Clear / new invoice ----------
+
+// Reset the form to a blank "new invoice" state. Preserves all persistent state
+// (seller info, bank details, defaults, saved customers, line templates, invoice
+// counter). Only wipes the per-invoice fields the user was composing.
+function clearInvoice() {
+  // Buyer block — setBuyer({}) clears all [data-buyer] inputs
+  setBuyer({});
+  // Restore the one buyer field that has a meaningful HTML default
+  $('[data-buyer="endpoint_scheme"]').value = "0208";
+
+  // Lookup controls — reset to their initial state
+  $("#lookup-country").value = "BE";
+  $("#lookup-vat").value = "";
+  $("#lookup-vat").removeAttribute("aria-invalid");
+
+  // Line items — remove all rows, add a single fresh one
+  $("#line-items-body").innerHTML = "";
+  $("#line-items-body").appendChild(makeLineRow());
+
+  // Invoice meta — advance counter, reset dates and defaults
+  const d = getDefaults();
+  $("#invoice_number").value = nextInvoiceNumber();
+  $("#issue_date").value = todayISO();
+  $("#due_date").value = addDays(todayISO(), d.due_days);
+  $("#currency").value = d.currency;
+  $("#invoice-language").value = d.language || "en";
+  $("#payment_terms").value = d.payment_terms;
+
+  // Dropdowns back to their placeholder option
+  $("#recent-customers").value = "";
+  $("#template-select").value = "";
+  $("#delete-customer-btn").disabled = true;
+
+  // Recalculate totals (now 0.00) and hide any lingering result panel
+  recalcTotals();
+  const panel = $("#result-panel");
+  panel.hidden = true;
+  panel.innerHTML = "";
+
+  // Send gate back to "needs validation"
+  setSendGate("initial", "Click Validate first");
+
+  // Finally, the form is fresh again — no unsaved send state
+  invoiceSent = false;
+}
+
 // ---------- Settings modal ----------
 
 function openSettings() {
   const d = getDefaults();
   $("#default-currency").value = d.currency;
+  $("#default-language").value = d.language || "en";
   $("#default-payment-terms").value = d.payment_terms;
   $("#default-due-days").value = d.due_days;
   $("#default-tax-category").value = d.tax_category;
@@ -818,6 +906,7 @@ function openSettings() {
 function saveSettingsFromModal() {
   saveDefaults({
     currency: $("#default-currency").value || "EUR",
+    language: $("#default-language").value || "en",
     payment_terms: $("#default-payment-terms").value,
     due_days: Number($("#default-due-days").value || 21),
     tax_category: $("#default-tax-category").value || "E",
@@ -849,6 +938,7 @@ function saveSettingsFromModal() {
 function applyDefaultsToForm() {
   const d = getDefaults();
   if (!$("#currency").value) $("#currency").value = d.currency;
+  if (!$("#invoice-language").value) $("#invoice-language").value = d.language || "en";
   if (!$("#payment_terms").value) $("#payment_terms").value = d.payment_terms;
   if (!$("#due_date").value && $("#issue_date").value) {
     $("#due_date").value = addDays($("#issue_date").value, d.due_days);
@@ -901,9 +991,33 @@ function init() {
   renderCustomerDropdown();
   $("#recent-customers").addEventListener("change", (e) => {
     const i = e.target.value;
+    $("#delete-customer-btn").disabled = i === "";
     if (i === "") return;
-    const customer = loadCustomers()[Number(i)];
-    if (customer) setBuyer(customer);
+    const record = loadCustomers()[Number(i)];
+    if (!record) return;
+    // Language rides alongside the buyer fields on the saved record, but
+    // setBuyer() only iterates [data-buyer] inputs so it naturally ignores it.
+    // Pull it out explicitly and apply to the invoice-language dropdown.
+    const { language, ...buyer } = record;
+    setBuyer(buyer);
+    if (language && SUPPORTED_LANGUAGES.includes(language)) {
+      $("#invoice-language").value = language;
+    }
+  });
+
+  // Delete the currently selected customer from the recent list.
+  $("#delete-customer-btn").addEventListener("click", () => {
+    const sel = $("#recent-customers");
+    if (!sel.value) return;
+    const idx = Number(sel.value);
+    const customer = loadCustomers()[idx];
+    if (!customer) return;
+    const label = customer.name || customer.endpoint_id || "this customer";
+    if (!confirm(`Delete "${label}" from recent customers?`)) return;
+    deleteCustomerAt(idx);
+    renderCustomerDropdown();
+    sel.value = "";
+    $("#delete-customer-btn").disabled = true;
   });
 
   // Templates
@@ -936,6 +1050,35 @@ function init() {
   $("#settings-btn").addEventListener("click", openSettings);
   $("#settings-cancel").addEventListener("click", () => $("#settings-modal").close());
   $("#settings-save").addEventListener("click", saveSettingsFromModal);
+
+  // Factory reset — wipes every Peppify key and reloads the page.
+  $("#factory-reset-btn").addEventListener("click", () => {
+    const confirmed = confirm(
+      "Reset all Peppify data? This permanently deletes your saved defaults, " +
+        "bank details, contact info, recent customers, line templates, and invoice counter. " +
+        "This cannot be undone.",
+    );
+    if (confirmed) factoryReset();
+  });
+
+  // New / clear invoice — confirm only when the current draft hasn't been sent yet
+  $("#new-btn").addEventListener("click", () => {
+    if (invoiceSent) {
+      clearInvoice();
+      return;
+    }
+    if (confirm("Start a new invoice? Your current draft will be discarded.")) {
+      clearInvoice();
+    }
+  });
+
+  // Dirty tracking — any real user input on the invoice composer clears the
+  // "already sent" flag so the next clearInvoice() call prompts again.
+  // Programmatic .value = assignments don't fire input events, so the
+  // post-send auto-advance of #invoice_number won't trip this.
+  const paper = document.querySelector("main.paper");
+  paper.addEventListener("input", () => { invoiceSent = false; });
+  paper.addEventListener("change", () => { invoiceSent = false; });
 
   // Seller info
   loadSeller();

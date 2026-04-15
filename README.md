@@ -5,7 +5,7 @@ A small tool for generating [EN-16931](https://peppol.org/what-is-peppol/peppol-
 ## What it does
 
 - **Create** EN-16931 compliant UBL 2.1 XML from a simple JSON input (or a web form)
-- **Render** a human-readable PDF "visual representation" of the invoice and embed it inside the UBL XML (PEPPOL BIS Billing 3.0 rule R008) so receivers' accountancy software has something to show end users
+- **Render** a human-readable PDF "visual representation" of the invoice and embed it inside the UBL XML (PEPPOL BIS Billing 3.0 rule R008) so receivers' accountancy software has something to show end users. The PDF is translated per-invoice into one of four languages (**EN / NL / FR / DE**) with human-readable unit names and BeNeLux number formatting (`1.234,56`), and includes an **EPC QR Code** (SEPA / Girocode) on EUR credit-transfer invoices so the recipient can scan it with their banking app to pre-fill IBAN, beneficiary, amount, and reference
 - **Validate** the XML against the official UBL 2.1 XSD schemas
 - **Send** it to the PEPPOL network via Peppyrus, with automatic retry on transient failures
 - **Fetch reports** (validation + transmission rules) for sent messages
@@ -99,6 +99,9 @@ uv run python cli.py create --input sample_invoice.json --out invoice.xml
 # 1b. XML-only output (skip the embedded PDF)
 uv run python cli.py create --input sample_invoice.json --out invoice.xml --no-pdf
 
+# 1c. Override the PDF language (en / nl / fr / de — falls back to invoice JSON or 'en')
+uv run python cli.py create --input sample_invoice.json --out invoice.xml --language nl
+
 # 2. Validate it (structural checks + XSD)
 uv run python cli.py validate --file invoice.xml
 
@@ -115,25 +118,57 @@ See [`docs/invoice-json-schema.md`](docs/invoice-json-schema.md) for the full JS
 
 ### Web UI
 
+#### Development
+
 ```bash
 uv run python webapp/app.py
 # open http://127.0.0.1:5000
 ```
 
+Flask's built-in dev server. Fine for local iteration; prints a Werkzeug warning because it is not a production server.
+
+#### Production (Python)
+
+```bash
+uv sync --group prod
+uv run gunicorn webapp.app:app -b 127.0.0.1:5000 --workers 2
+# open http://127.0.0.1:5000
+```
+
+Same app, served by gunicorn — no dev-server warning. Requires a working Python + `uv` environment with the system-level Pango/Cairo libraries WeasyPrint needs.
+
+#### Production (Docker)
+
+```bash
+cp .env.example .env   # fill in PEPPYRUS_* values
+docker compose up --build
+# open http://127.0.0.1:5000
+```
+
+The image bundles Python, the pinned dependencies, and all native libraries required for PDF rendering — no host install beyond Docker itself. The compose file binds the app to `127.0.0.1` on the host; see **Security** below before exposing it further.
+
 Single-page invoice form with:
 
 - **Seller auto-fill** from Peppyrus `/organization/info`
 - **Buyer lookup** by VAT number, enriched with PEPPOL directory data
-- **Recent customers** and **line item templates** stored in localStorage (overwrite-on-update)
+- **Recent customers** and **line item templates** stored in localStorage (overwrite-on-update), with a small `×` next to the Recent dropdown to delete a single saved customer
 - **Line items** with optional **per-line service date** (UBL `cac:InvoicePeriod`)
 - **Live totals** as you type; strict unit and VAT category dropdowns
 - **Auto-incrementing invoice number**
-- **Settings modal** for defaults (currency, due-date offset, payment terms, tax category, **embed PDF on/off**), your **bank account** (IBAN, BIC, account holder — emitted as structured `cac:PaymentMeans` on every invoice to satisfy PEPPOL rule BR-50), and your personal contact info (name, email, phone)
+- **New invoice** button (`＋`) in the header — wipes the current draft and starts fresh while keeping all saved state; silent when the previous draft was already sent, confirms otherwise
+- **PDF language selector** next to the Currency field — pick EN / NL / FR / DE per invoice. The chosen language is saved on the customer record so the next invoice to the same customer auto-fills it, and a `Default PDF language` in Settings is the fallback for new customers
+- **Settings modal** for defaults (currency, default PDF language, due-date offset, payment terms, tax category, **embed PDF on/off**), your **bank account** (IBAN, BIC, account holder — emitted as structured `cac:PaymentMeans` on every invoice to satisfy PEPPOL rule BR-50), and your personal contact info (name, email, phone). A **Danger zone** at the bottom offers a one-click factory reset that wipes every Peppify key from localStorage
 - **Preview PDF** button — see the human-readable representation that will be embedded in the invoice before you send it
 - **Guarded Send** — the `Send invoice` button stays disabled until you click `Validate` and no FATAL rules remain; rules are shown inline and block transmission either way
 - **Recipient derived from the buyer** — the outgoing PEPPOL `recipient` is built on the fly from the buyer's `Scheme` + `Endpoint ID` fields, so you only enter the identifier once
 
 All persistent state lives in the browser. The Flask server is stateless beyond the environment variables.
+
+## Security
+
+The webapp has **no built-in authentication**. Anyone who can reach the HTTP port can create, validate, and send invoices signed with your Peppyrus API key.
+
+All documented run modes bind the app to `127.0.0.1`, so out of the box it is only reachable from the machine it runs on. If you want to expose it beyond localhost (LAN or internet), you **must** put an authenticating reverse proxy (Caddy, Traefik, nginx + basic-auth, your SSO of choice) in front of it. Changing the bind address to `0.0.0.0` without such a proxy is unsafe.
 
 ## Project structure
 
