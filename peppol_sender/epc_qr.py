@@ -42,7 +42,7 @@ def build_epc_payload(invoice: dict, grand_total: Decimal) -> str | None:
     to the PDF/XML totals — no re-computation of tax groups in this module.
     """
     pm = invoice.get("payment_means") or {}
-    iban = (pm.get("iban") or "").replace(" ", "")
+    iban = "".join((pm.get("iban") or "").split())
     if not iban:
         return None
     if (invoice.get("currency") or "").upper() != "EUR":
@@ -75,7 +75,12 @@ def build_epc_payload(invoice: dict, grand_total: Decimal) -> str | None:
     while len("\n".join(fields).encode("utf-8")) > _EPC_MAX_BYTES and fields[5]:
         fields[5] = fields[5][:-1]
 
-    return "\n".join(fields)
+    payload = "\n".join(fields)
+    if len(payload.encode("utf-8")) > _EPC_MAX_BYTES:
+        # Pathological non-truncatable input (e.g. malformed IBAN/BIC pushing the
+        # fixed fields alone over the cap). Spec guarantees ≤ 331 bytes, so bail.
+        return None
+    return payload
 
 
 def render_qr_svg(payload: str) -> str:

@@ -135,7 +135,7 @@ Dates in the PDF MUST remain in ISO format (`YYYY-MM-DD`) regardless of the sele
 #### Scenario: English invoice unchanged (except number format)
 
 - **WHEN** an invoice with `language: "en"` (or no `language` field) is rendered
-- **THEN** labels appear in English (`Description`, `Qty`, `Unit`, etc.) and the PDF is byte-identical to the pre-translation version of the tool, except that monetary amounts switch to BeNeLux notation (e.g. `1.000,00` instead of `1000.00`)
+- **THEN** labels appear in English (`Description`, `Qty`, `Unit`, etc.) and the PDF layout and content are functionally equivalent to the pre-translation version of the tool, except that monetary amounts switch to BeNeLux notation (e.g. `1.000,00` instead of `1000.00`)
 
 #### Scenario: Unknown language falls back to English
 
