@@ -169,6 +169,13 @@ function saveCustomer(buyer) {
   lsSet(LS_KEYS.customers, customers.slice(0, 50));
 }
 
+function deleteCustomerAt(index) {
+  const customers = loadCustomers();
+  if (index < 0 || index >= customers.length) return;
+  customers.splice(index, 1);
+  lsSet(LS_KEYS.customers, customers);
+}
+
 function renderCustomerDropdown() {
   const select = $("#recent-customers");
   select.innerHTML = '<option value="">— select customer —</option>';
@@ -808,6 +815,17 @@ function escape(s) {
     .replaceAll(">", "&gt;");
 }
 
+// ---------- Factory reset ----------
+
+// Wipes every Peppify key from localStorage and reloads the page. Reload is
+// the cleanest way to reinitialize every UI state at once (seller card,
+// dropdowns, counter, form defaults) without manually reversing every init()
+// side effect. Guarded by a confirm() in the caller.
+function factoryReset() {
+  Object.values(LS_KEYS).forEach((key) => localStorage.removeItem(key));
+  window.location.reload();
+}
+
 // ---------- Clear / new invoice ----------
 
 // Reset the form to a blank "new invoice" state. Preserves all persistent state
@@ -839,6 +857,7 @@ function clearInvoice() {
   // Dropdowns back to their placeholder option
   $("#recent-customers").value = "";
   $("#template-select").value = "";
+  $("#delete-customer-btn").disabled = true;
 
   // Recalculate totals (now 0.00) and hide any lingering result panel
   recalcTotals();
@@ -960,9 +979,25 @@ function init() {
   renderCustomerDropdown();
   $("#recent-customers").addEventListener("change", (e) => {
     const i = e.target.value;
+    $("#delete-customer-btn").disabled = i === "";
     if (i === "") return;
     const customer = loadCustomers()[Number(i)];
     if (customer) setBuyer(customer);
+  });
+
+  // Delete the currently selected customer from the recent list.
+  $("#delete-customer-btn").addEventListener("click", () => {
+    const sel = $("#recent-customers");
+    if (!sel.value) return;
+    const idx = Number(sel.value);
+    const customer = loadCustomers()[idx];
+    if (!customer) return;
+    const label = customer.name || customer.endpoint_id || "this customer";
+    if (!confirm(`Delete "${label}" from recent customers?`)) return;
+    deleteCustomerAt(idx);
+    renderCustomerDropdown();
+    sel.value = "";
+    $("#delete-customer-btn").disabled = true;
   });
 
   // Templates
@@ -995,6 +1030,16 @@ function init() {
   $("#settings-btn").addEventListener("click", openSettings);
   $("#settings-cancel").addEventListener("click", () => $("#settings-modal").close());
   $("#settings-save").addEventListener("click", saveSettingsFromModal);
+
+  // Factory reset — wipes every Peppify key and reloads the page.
+  $("#factory-reset-btn").addEventListener("click", () => {
+    const confirmed = confirm(
+      "Reset all Peppify data? This permanently deletes your saved defaults, " +
+        "bank details, contact info, recent customers, line templates, and invoice counter. " +
+        "This cannot be undone.",
+    );
+    if (confirmed) factoryReset();
+  });
 
   // New / clear invoice — confirm only when the current draft hasn't been sent yet
   $("#new-btn").addEventListener("click", () => {

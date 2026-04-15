@@ -46,9 +46,12 @@
         <div class="bill-to-controls">
           <div class="control-group">
             <label class="micro">Recent</label>
-            <select id="recent-customers" aria-label="Recent customers">
-              <option value="">— select customer —</option>
-            </select>
+            <div class="dropdown-with-delete">
+              <select id="recent-customers" aria-label="Recent customers">
+                <option value="">— select customer —</option>
+              </select>
+              <button type="button" id="delete-customer-btn" class="delete-btn" title="Delete selected customer" aria-label="Delete selected customer" disabled>×</button>
+            </div>
           </div>
           <div class="control-group lookup-group">
             <label class="micro">Look up by VAT</label>
@@ -305,6 +308,13 @@
       <div class="modal-actions">
         <button type="button" id="settings-cancel" class="btn btn-secondary">Cancel</button>
         <button type="button" id="settings-save" class="btn btn-primary">Save</button>
+      </div>
+
+      <h2 class="settings-subhead danger-zone-head">Danger zone</h2>
+      <p class="meta">Wipes every Peppify setting in this browser — saved defaults, bank details, contact info, recent customers, line templates, and the invoice counter. Cannot be undone.</p>
+
+      <div class="danger-zone">
+        <button type="button" id="factory-reset-btn" class="btn btn-danger">Reset all Peppify data</button>
       </div>
     </form>
   </dialog>

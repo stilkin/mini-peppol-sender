@@ -711,6 +711,49 @@ select#template-select {
 
 .btn-secondary { background: transparent; }
 
+.btn-danger {
+  background: var(--oxblood);
+  color: var(--paper);
+  border-color: var(--oxblood);
+}
+
+.btn-danger:hover {
+  background: var(--oxblood-deep);
+  box-shadow: 2px 3px 0 0 var(--ink);
+}
+
+/* Inline delete next to a dropdown — scaled down from .icon-btn. */
+.dropdown-with-delete {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+.dropdown-with-delete select {
+  flex: 1;
+  min-width: 0;
+}
+.delete-btn {
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  width: 32px;
+  padding: 0;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--ink-mid);
+  transition: all 180ms ease;
+}
+.delete-btn:hover:not(:disabled) {
+  border-color: var(--oxblood);
+  color: var(--oxblood);
+  background: rgba(124, 45, 45, 0.06);
+}
+.delete-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 .btn[disabled] {
   opacity: 0.4;
   cursor: not-allowed;
@@ -843,6 +886,17 @@ select#template-select {
   margin-top: 14px;
   padding-top: 18px;
   border-top: 1px dotted var(--rule);
+}
+
+.settings-form .settings-subhead.danger-zone-head {
+  color: var(--oxblood);
+  border-top-color: var(--oxblood);
+}
+
+.settings-form .danger-zone {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 4px;
 }
 
 .settings-form .meta {
