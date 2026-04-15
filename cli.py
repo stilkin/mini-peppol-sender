@@ -25,6 +25,8 @@ load_dotenv()
 def cmd_create(args: argparse.Namespace) -> None:
     with open(args.input, encoding="utf-8") as f:
         data = json.load(f)
+    if args.language:
+        data["language"] = args.language
     xml = generate_ubl(data, embed_pdf=args.embed_pdf)
     with open(args.out, "wb") as f:
         f.write(xml)
@@ -116,6 +118,12 @@ def main() -> None:
         action="store_false",
         default=True,
         help="Do not embed a rendered PDF visual representation (default: embed)",
+    )
+    c.add_argument(
+        "--language",
+        choices=["en", "nl", "fr", "de"],
+        default=None,
+        help="Override the PDF language (default: use the invoice JSON or 'en')",
     )
     c.set_defaults(func=cmd_create)
 

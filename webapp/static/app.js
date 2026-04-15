@@ -17,11 +17,14 @@ const LS_KEYS = {
 
 const DEFAULT_DEFAULTS = {
   currency: "EUR",
+  language: "en",
   payment_terms: "Net 21 days",
   due_days: 21,
   tax_category: "E",
   tax_percent: 0,
 };
+
+const SUPPORTED_LANGUAGES = ["en", "nl", "fr", "de"];
 
 // UBL VAT category codes (D.16B). Visible label = "code — meaning".
 const TAX_CATEGORIES = [
@@ -159,13 +162,17 @@ function customerKey(buyer) {
   return null;
 }
 
-function saveCustomer(buyer) {
+function saveCustomer(buyer, language) {
   const key = customerKey(buyer);
   if (!key) return;
   const customers = loadCustomers();
   const existing = customers.findIndex((c) => customerKey(c) === key);
   if (existing >= 0) customers.splice(existing, 1);
-  customers.unshift(buyer);
+  // Persist the chosen PDF language on the record so a subsequent load
+  // auto-fills it. Non-enumerable on setBuyer() because setBuyer only touches
+  // [data-buyer] DOM fields.
+  const record = language ? { ...buyer, language } : { ...buyer };
+  customers.unshift(record);
   lsSet(LS_KEYS.customers, customers.slice(0, 50));
 }
 
@@ -612,6 +619,7 @@ function collectInvoice() {
     due_date: readDateInput($("#due_date")) || undefined,
     invoice_type_code: "380",
     currency: ($("#currency").value || "EUR").toUpperCase(),
+    language: ($("#invoice-language").value || "en").toLowerCase(),
     payment_terms: $("#payment_terms").value || undefined,
     payment_means,
     seller,
@@ -733,8 +741,8 @@ async function doSend() {
       title: "Invoice sent",
       summary: `Message ID <strong>${escape(msgId)}</strong> · Folder <strong>${escape(r.folder || "—")}</strong>`,
     });
-    // On success: persist customer + advance invoice number
-    saveCustomer(invoice.buyer);
+    // On success: persist customer (with their PDF language) + advance invoice number
+    saveCustomer(invoice.buyer, invoice.language);
     renderCustomerDropdown();
     lsSet(LS_KEYS.lastNumber, invoice.invoice_number);
     $("#invoice_number").value = nextInvoiceNumber();
@@ -852,6 +860,7 @@ function clearInvoice() {
   $("#issue_date").value = todayISO();
   $("#due_date").value = addDays(todayISO(), d.due_days);
   $("#currency").value = d.currency;
+  $("#invoice-language").value = d.language || "en";
   $("#payment_terms").value = d.payment_terms;
 
   // Dropdowns back to their placeholder option
@@ -877,6 +886,7 @@ function clearInvoice() {
 function openSettings() {
   const d = getDefaults();
   $("#default-currency").value = d.currency;
+  $("#default-language").value = d.language || "en";
   $("#default-payment-terms").value = d.payment_terms;
   $("#default-due-days").value = d.due_days;
   $("#default-tax-category").value = d.tax_category;
@@ -896,6 +906,7 @@ function openSettings() {
 function saveSettingsFromModal() {
   saveDefaults({
     currency: $("#default-currency").value || "EUR",
+    language: $("#default-language").value || "en",
     payment_terms: $("#default-payment-terms").value,
     due_days: Number($("#default-due-days").value || 21),
     tax_category: $("#default-tax-category").value || "E",
@@ -927,6 +938,7 @@ function saveSettingsFromModal() {
 function applyDefaultsToForm() {
   const d = getDefaults();
   if (!$("#currency").value) $("#currency").value = d.currency;
+  if (!$("#invoice-language").value) $("#invoice-language").value = d.language || "en";
   if (!$("#payment_terms").value) $("#payment_terms").value = d.payment_terms;
   if (!$("#due_date").value && $("#issue_date").value) {
     $("#due_date").value = addDays($("#issue_date").value, d.due_days);
@@ -981,8 +993,16 @@ function init() {
     const i = e.target.value;
     $("#delete-customer-btn").disabled = i === "";
     if (i === "") return;
-    const customer = loadCustomers()[Number(i)];
-    if (customer) setBuyer(customer);
+    const record = loadCustomers()[Number(i)];
+    if (!record) return;
+    // Language rides alongside the buyer fields on the saved record, but
+    // setBuyer() only iterates [data-buyer] inputs so it naturally ignores it.
+    // Pull it out explicitly and apply to the invoice-language dropdown.
+    const { language, ...buyer } = record;
+    setBuyer(buyer);
+    if (language && SUPPORTED_LANGUAGES.includes(language)) {
+      $("#invoice-language").value = language;
+    }
   });
 
   // Delete the currently selected customer from the recent list.

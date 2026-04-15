@@ -145,42 +145,42 @@
 </head>
 <body>
   <header>
-    <h1>Invoice</h1>
+    <h1>{{ labels.invoice }}</h1>
     <div class="meta">
       <span class="mono">{{ invoice.invoice_number }}</span>
-      &nbsp;·&nbsp; Issued {{ invoice.issue_date }}
-      {% if invoice.due_date %}&nbsp;·&nbsp; Due {{ invoice.due_date }}{% endif %}
-      {% if invoice.buyer_reference %}&nbsp;·&nbsp; Ref <span class="mono">{{ invoice.buyer_reference }}</span>{% endif %}
+      &nbsp;·&nbsp; {{ labels.issued }} {{ invoice.issue_date }}
+      {% if invoice.due_date %}&nbsp;·&nbsp; {{ labels.due }} {{ invoice.due_date }}{% endif %}
+      {% if invoice.buyer_reference %}&nbsp;·&nbsp; {{ labels.ref }} <span class="mono">{{ invoice.buyer_reference }}</span>{% endif %}
     </div>
   </header>
 
   <section class="parties">
     <div>
-      <div class="section-label">From</div>
+      <div class="section-label">{{ labels.from }}</div>
       <strong>{{ seller.name }}</strong><br>
       {% if seller.street %}{{ seller.street }}<br>{% endif %}
       {% if seller.postal_code or seller.city %}{{ seller.postal_code }} {{ seller.city }}<br>{% endif %}
       {% if seller.country %}{{ seller.country }}<br>{% endif %}
-      {% if seller.vat %}<span class="mono">VAT {{ seller.vat }}</span>{% endif %}
+      {% if seller.vat %}<span class="mono">{{ labels.vat }} {{ seller.vat }}</span>{% endif %}
     </div>
     <div>
-      <div class="section-label">Bill to</div>
+      <div class="section-label">{{ labels.bill_to }}</div>
       <strong>{{ buyer.name }}</strong><br>
       {% if buyer.street %}{{ buyer.street }}<br>{% endif %}
       {% if buyer.postal_code or buyer.city %}{{ buyer.postal_code }} {{ buyer.city }}<br>{% endif %}
       {% if buyer.country %}{{ buyer.country }}<br>{% endif %}
-      {% if buyer.vat %}<span class="mono">VAT {{ buyer.vat }}</span>{% endif %}
+      {% if buyer.vat %}<span class="mono">{{ labels.vat }} {{ buyer.vat }}</span>{% endif %}
     </div>
   </section>
 
   <table class="lines">
     <thead>
       <tr>
-        <th>Description</th>
-        <th class="num">Qty</th>
-        <th class="unit">Unit</th>
-        <th class="num">Unit price</th>
-        <th class="num">Line total</th>
+        <th>{{ labels.description }}</th>
+        <th class="num">{{ labels.qty }}</th>
+        <th class="unit">{{ labels.unit }}</th>
+        <th class="num">{{ labels.unit_price }}</th>
+        <th class="num">{{ labels.line_total }}</th>
       </tr>
     </thead>
     <tbody>
@@ -188,10 +188,10 @@
       <tr>
         <td>
           {{ line.description }}
-          {% if line.service_date %}<span class="service-date">Service date: {{ line.service_date }}</span>{% endif %}
+          {% if line.service_date %}<span class="service-date">{{ labels.service_date }} {{ line.service_date }}</span>{% endif %}
         </td>
         <td class="num">{{ line.quantity }}</td>
-        <td class="unit">{{ line.unit }}</td>
+        <td class="unit">{{ line.unit_label }}</td>
         <td class="num">{{ line.unit_price }}</td>
         <td class="num">{{ line.line_total }}</td>
       </tr>
@@ -200,25 +200,25 @@
   </table>
 
   <div class="totals">
-    <div class="row"><span>Subtotal</span><span class="mono">{{ subtotal }}</span></div>
-    <div class="row"><span>Tax</span><span class="mono">{{ tax_total }}</span></div>
-    <div class="row grand"><span>Total due</span><span class="mono">{{ grand_total }} {{ currency }}</span></div>
+    <div class="row"><span>{{ labels.subtotal }}</span><span class="mono">{{ subtotal }}</span></div>
+    <div class="row"><span>{{ labels.tax }}</span><span class="mono">{{ tax_total }}</span></div>
+    <div class="row grand"><span>{{ labels.total_due }}</span><span class="mono">{{ grand_total }} {{ currency }}</span></div>
   </div>
 
   {% if payment_means and payment_means.iban %}
   <section class="payment">
     <div class="payment-info">
-      <div class="section-label">Payment</div>
-      Please transfer to:<br>
+      <div class="section-label">{{ labels.payment }}</div>
+      {{ labels.please_transfer_to }}<br>
       <span class="iban">{{ payment_means.iban }}</span>
-      {% if payment_means.bic %}&nbsp;·&nbsp; BIC <span class="mono">{{ payment_means.bic }}</span>{% endif %}
+      {% if payment_means.bic %}&nbsp;·&nbsp; {{ labels.bic }} <span class="mono">{{ payment_means.bic }}</span>{% endif %}
       {% if payment_means.account_name %}<div class="detail">{{ payment_means.account_name }}</div>{% endif %}
-      {% if payment_means.payment_id %}<div class="detail">Reference: <span class="mono">{{ payment_means.payment_id }}</span></div>{% endif %}
+      {% if payment_means.payment_id %}<div class="detail">{{ labels.reference }} <span class="mono">{{ payment_means.payment_id }}</span></div>{% endif %}
     </div>
     {% if epc_qr_svg %}
     <div class="payment-qr" aria-label="EPC SEPA payment QR code">
       {{ epc_qr_svg | safe }}
-      <div class="qr-hint">Scan with your banking app</div>
+      <div class="qr-hint">{{ labels.scan_with_banking_app }}</div>
     </div>
     {% endif %}
   </section>

@@ -152,6 +152,15 @@
             <span class="micro">Currency</span>
             <input type="text" id="currency" class="mono" list="currencies" value="EUR" maxlength="3" data-uppercase>
           </label>
+          <label class="field">
+            <span class="micro">PDF language</span>
+            <select id="invoice-language" aria-label="PDF language">
+              <option value="en">English</option>
+              <option value="nl">Nederlands</option>
+              <option value="fr">Français</option>
+              <option value="de">Deutsch</option>
+            </select>
+          </label>
           <label class="field span-4">
             <span class="micro">Payment terms</span>
             <textarea id="payment_terms" rows="3" placeholder="Net 21 days"></textarea>
@@ -247,6 +256,15 @@
         <label class="field">
           <span class="micro">Due date offset (days)</span>
           <input type="number" id="default-due-days" class="mono" min="0">
+        </label>
+        <label class="field">
+          <span class="micro">PDF language</span>
+          <select id="default-language">
+            <option value="en">English</option>
+            <option value="nl">Nederlands</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+          </select>
         </label>
       </div>
 

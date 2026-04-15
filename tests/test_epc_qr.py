@@ -98,6 +98,17 @@ def test_payload_amount_matches_grand_total_byte_for_byte() -> None:
     assert payload.split("\n")[7] == "EUR1234.56"
 
 
+def test_payload_amount_stays_ascii_regardless_of_language() -> None:
+    """Guardrail: EPC069-12 is an ASCII-locked spec. Even when the PDF is rendered
+    in Dutch/French/German, the EPC QR payload amount must stay `EUR1234.56` —
+    never `EUR1.234,56`."""
+    for lang in ("en", "nl", "fr", "de"):
+        inv = {**SAMPLE_INVOICE, "language": lang}
+        payload = build_epc_payload(inv, Decimal("1234.56"))
+        assert payload is not None
+        assert payload.split("\n")[7] == "EUR1234.56", f"EPC amount corrupted for lang={lang}"
+
+
 def test_payload_truncation_of_reference_only() -> None:
     # 200-char ASCII reference is under the global cap once reference is shrunk,
     # but name stays intact. Exercises the reference-truncation loop.
