@@ -15,6 +15,8 @@ from typing import Any
 
 import jinja2
 
+from peppol_sender.epc_qr import build_epc_payload, render_qr_svg
+
 _TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 
 
@@ -59,6 +61,11 @@ def _build_view_model(invoice: dict[str, Any]) -> dict[str, Any]:
     for (_cat, pct), taxable in groups.items():
         tax_total += _dec(taxable * pct / 100)
 
+    grand_total_dec = line_sum + tax_total
+
+    epc_payload = build_epc_payload(invoice, grand_total_dec)
+    epc_qr_svg = render_qr_svg(epc_payload) if epc_payload else None
+
     return {
         "invoice": invoice,
         "seller": invoice.get("seller", {}),
@@ -68,7 +75,8 @@ def _build_view_model(invoice: dict[str, Any]) -> dict[str, Any]:
         "currency": currency,
         "subtotal": f"{line_sum:.2f}",
         "tax_total": f"{tax_total:.2f}",
-        "grand_total": f"{line_sum + tax_total:.2f}",
+        "grand_total": f"{grand_total_dec:.2f}",
+        "epc_qr_svg": epc_qr_svg,
     }
 
 

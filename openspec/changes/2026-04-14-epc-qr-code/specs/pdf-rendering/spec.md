@@ -16,7 +16,7 @@ Payload construction MUST be implemented in a dedicated module (`peppol_sender/e
 #### Scenario: Payload encodes the expected fields
 
 - **WHEN** `build_epc_payload()` is called on an invoice with seller name `Acme BV`, IBAN `BE68539007547034`, BIC `GEBABEBB`, grand total `120.00`, and invoice number `INV-42`
-- **THEN** the returned string's 12 line-delimited fields are `BCD`, `002`, `1`, `SCT`, `GEBABEBB`, `Acme BV`, `BE68539007547034`, `EUR120.00`, empty, empty, `INV-42`, empty
+- **THEN** the returned string's 11 line-delimited fields are `BCD`, `002`, `1`, `SCT`, `GEBABEBB`, `Acme BV`, `BE68539007547034`, `EUR120.00`, empty, empty, `INV-42`
 
 #### Scenario: Non-EUR invoice skips the QR silently
 

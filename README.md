@@ -5,7 +5,7 @@ A small tool for generating [EN-16931](https://peppol.org/what-is-peppol/peppol-
 ## What it does
 
 - **Create** EN-16931 compliant UBL 2.1 XML from a simple JSON input (or a web form)
-- **Render** a human-readable PDF "visual representation" of the invoice and embed it inside the UBL XML (PEPPOL BIS Billing 3.0 rule R008) so receivers' accountancy software has something to show end users
+- **Render** a human-readable PDF "visual representation" of the invoice and embed it inside the UBL XML (PEPPOL BIS Billing 3.0 rule R008) so receivers' accountancy software has something to show end users — the PDF includes an **EPC QR Code** (SEPA / Girocode) on EUR credit-transfer invoices so the recipient can scan it with their banking app to pre-fill IBAN, beneficiary, amount, and reference
 - **Validate** the XML against the official UBL 2.1 XSD schemas
 - **Send** it to the PEPPOL network via Peppyrus, with automatic retry on transient failures
 - **Fetch reports** (validation + transmission rules) for sent messages

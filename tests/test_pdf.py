@@ -140,6 +140,30 @@ def test_view_model_omits_payment_means_when_absent() -> None:
     assert vm["payment_means"] is None
 
 
+def test_view_model_includes_epc_qr_for_eur_credit_transfer() -> None:
+    vm = _build_view_model(SAMPLE_INVOICE)
+    assert vm["epc_qr_svg"] is not None
+    assert vm["epc_qr_svg"].startswith("<svg")
+
+    from peppol_sender.pdf import _env
+
+    html = _env.get_template("invoice.html").render(**vm)
+    assert 'class="payment-qr"' in html  # QR container rendered into markup
+    assert "Scan with your banking app" in html
+
+
+def test_view_model_omits_epc_qr_for_non_eur_invoice() -> None:
+    inv = {**SAMPLE_INVOICE, "currency": "USD"}
+    vm = _build_view_model(inv)
+    assert vm["epc_qr_svg"] is None
+
+    from peppol_sender.pdf import _env
+
+    html = _env.get_template("invoice.html").render(**vm)
+    assert 'class="payment-qr"' not in html
+    assert "Scan with your banking app" not in html
+
+
 def test_view_model_line_extension_amount_override() -> None:
     """Explicit line_extension_amount overrides the quantity * unit_price default."""
     inv = {

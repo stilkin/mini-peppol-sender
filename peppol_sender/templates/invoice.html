@@ -108,6 +108,19 @@
     padding: 4mm 5mm;
     background: #f7f2e8;
     border-left: 3pt solid #7c2d2d;
+    display: flex;
+    align-items: flex-start;
+    gap: 6mm;
+  }
+  .payment-info { flex: 1; }
+  .payment-qr { flex: 0 0 28mm; text-align: center; }
+  .payment-qr svg { width: 28mm; height: 28mm; display: block; }
+  .payment-qr .qr-hint {
+    color: #7a7064;
+    font-size: 8pt;
+    font-style: italic;
+    margin-top: 1mm;
+    line-height: 1.3;
   }
   .payment .iban {
     font-family: Menlo, Consolas, "Courier New", monospace;
@@ -194,12 +207,20 @@
 
   {% if payment_means and payment_means.iban %}
   <section class="payment">
-    <div class="section-label">Payment</div>
-    Please transfer to:<br>
-    <span class="iban">{{ payment_means.iban }}</span>
-    {% if payment_means.bic %}&nbsp;·&nbsp; BIC <span class="mono">{{ payment_means.bic }}</span>{% endif %}
-    {% if payment_means.account_name %}<div class="detail">{{ payment_means.account_name }}</div>{% endif %}
-    {% if payment_means.payment_id %}<div class="detail">Reference: <span class="mono">{{ payment_means.payment_id }}</span></div>{% endif %}
+    <div class="payment-info">
+      <div class="section-label">Payment</div>
+      Please transfer to:<br>
+      <span class="iban">{{ payment_means.iban }}</span>
+      {% if payment_means.bic %}&nbsp;·&nbsp; BIC <span class="mono">{{ payment_means.bic }}</span>{% endif %}
+      {% if payment_means.account_name %}<div class="detail">{{ payment_means.account_name }}</div>{% endif %}
+      {% if payment_means.payment_id %}<div class="detail">Reference: <span class="mono">{{ payment_means.payment_id }}</span></div>{% endif %}
+    </div>
+    {% if epc_qr_svg %}
+    <div class="payment-qr" aria-label="EPC SEPA payment QR code">
+      {{ epc_qr_svg | safe }}
+      <div class="qr-hint">Scan with your banking app</div>
+    </div>
+    {% endif %}
   </section>
   {% endif %}
 
