@@ -1,4 +1,16 @@
-# Peppify
+<p align="center">
+  <img src="docs/peppify_logo.png" alt="Peppify" width="436" />
+</p>
+
+<p align="center">
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm_Noncommercial-blue" alt="License"></a>
+  <a href="https://docs.astral.sh/ruff/"><img src="https://img.shields.io/badge/code_style-ruff-D7FF64?logo=ruff&logoColor=D7FF64" alt="Ruff"></a>
+  <a href="https://mypy-lang.org/"><img src="https://img.shields.io/badge/type_checked-mypy-blue" alt="mypy"></a>
+  <a href="https://ko-fi.com/stilkin"><img src="https://img.shields.io/badge/Ko--fi-support_Peppify-FF5E5B?logo=ko-fi&logoColor=white" alt="Ko-fi"></a>
+</p>
+
+---
 
 A small tool for generating [EN-16931](https://peppol.org/what-is-peppol/peppol-document-specifications/) compliant UBL 2.1 invoices and sending them to the [PEPPOL](https://peppol.org/) e-invoicing network through the [Peppyrus](https://peppyrus.be/) Access Point API. Ships as both a **command-line tool** and a **single-page web UI**.
 
@@ -26,8 +38,6 @@ Designed for a small business that needs to issue invoices themselves, not for e
 | Web UI frontend | Jinja2 templates + vanilla JS + CSS (no build step, no framework) |
 | State (web UI) | browser localStorage — no server-side database |
 | Bundled schemas | Official OASIS UBL 2.1 XSD files in `schemas/xsd/` |
-| Tests | `pytest` + `pytest-cov` (99% coverage, 80% minimum enforced) |
-| Lint / type check | `ruff` + `mypy --strict` + `pre-commit` |
 
 PEPPOL BIS Billing 3.0 process type and document type strings are sourced from the Peppyrus OpenAPI spec in `docs/openapi_peppyrus.json`.
 
@@ -173,46 +183,6 @@ The webapp has **no built-in authentication**. Anyone who can reach the HTTP por
 
 All documented run modes bind the app to `127.0.0.1`, so out of the box it is only reachable from the machine it runs on. If you want to expose it beyond localhost (LAN or internet), you **must** put an authenticating reverse proxy (Caddy, Traefik, nginx + basic-auth, your SSO of choice) in front of it. Changing the bind address to `0.0.0.0` without such a proxy is unsafe.
 
-## Project structure
-
-```
-cli.py                     CLI entry point (create, validate, send, report)
-peppol_sender/
-  ubl.py                   EN-16931 compliant UBL 2.1 XML generation
-  pdf.py                   Jinja2 + WeasyPrint invoice PDF renderer
-  validator.py             Structural + XSD validation, local BR-50 + LOCAL-F001 rules
-  api.py                   Peppyrus API client with retry
-  templates/invoice.html   PDF template used by pdf.py
-webapp/
-  app.py                   Flask app and routes
-  templates/index.html     Single-page invoice form
-  static/                  CSS + vanilla JS (localStorage-backed state)
-  static/fonts/            Self-hosted Fraunces / Spectral / JetBrains Mono
-  static/fonts.css         Generated @font-face rules for the bundled fonts
-tests/                     pytest suite (unit + Flask test client)
-schemas/xsd/               Official UBL 2.1 XSD schemas (OASIS)
-docs/
-  invoice-json-schema.md   Full JSON input reference
-  openapi_peppyrus.json    Peppyrus OpenAPI 3.0 specification
-openspec/                  Spec-driven change history (archived)
-```
-
-## Development
-
-```bash
-uv run ruff check .                  # lint
-uv run ruff format .                 # format
-uv run mypy .                        # type check
-uv run pytest                        # run the test suite
-uv run pytest -k test_name           # run a single test by name
-uv run pytest tests/test_ubl.py      # run a single test file
-uv run pre-commit run --all-files    # run all pre-commit hooks
-```
-
-Dependencies are declared in `pyproject.toml` under `[project]` (runtime) and `[dependency-groups]` (dev). `uv.lock` pins exact versions for reproducible installs. Update the lock with `uv lock --upgrade` or pick a single package with `uv lock --upgrade-package <name>`.
-
-Pre-commit hooks (Ruff + MyPy) are installed via `uv run pre-commit install`. Coverage is enforced at ≥ 80% via `--cov-fail-under=80` in `pyproject.toml` (currently ~99%).
-
 ## Limitations
 
 - **No local Schematron / EN-16931 business rule validation.** The tool runs structural checks and XSD validation locally, but Schematron rules (e.g. `BR-CL-14`, `BR-CL-23`, `BR-CO-26`) are caught server-side by Peppyrus after transmission. You can retrieve the report with `cli.py report --id ...` or see the result inline in the web UI.
@@ -222,13 +192,17 @@ Pre-commit hooks (Ruff + MyPy) are installed via `uv run pre-commit install`. Co
 - **API retry is limited** to 3 attempts on 5xx errors with exponential backoff; there's no persistent retry queue.
 - **Single-user assumption** — the web UI has no authentication. The API key in `.env` belongs to one organisation and localStorage state is per-browser.
 
+## Contributing
+
+See [`docs/development.md`](docs/development.md) for project structure, linting, testing, and dependency management.
+
 ## Support
 
 If you enjoy Peppify and want to support its development, consider buying me a drink:
 
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/stilkin)
 
-Your support helps me continue developing and improving Peppify! ☕
+Your support helps me continue developing and improving Peppify!
 
 ## License
 
