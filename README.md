@@ -4,10 +4,10 @@
 
 <p align="center">
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm_Noncommercial-blue" alt="License"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-PolyForm_NC_1.0-blue" alt="License"></a>
   <a href="https://docs.astral.sh/ruff/"><img src="https://img.shields.io/badge/code_style-ruff-D7FF64?logo=ruff&logoColor=D7FF64" alt="Ruff"></a>
   <a href="https://mypy-lang.org/"><img src="https://img.shields.io/badge/type_checked-mypy-blue" alt="mypy"></a>
-  <a href="https://ko-fi.com/stilkin"><img src="https://img.shields.io/badge/Ko--fi-support_Peppify-FF5E5B?logo=ko-fi&logoColor=white" alt="Ko-fi"></a>
+  <a href="https://ko-fi.com/stilkin"><img src="https://img.shields.io/badge/Ko--fi-F16061?logo=ko-fi&logoColor=white" alt="Ko-fi"></a>
 </p>
 
 ---
