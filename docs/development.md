@@ -2,7 +2,7 @@
 
 ## Project structure
 
-```
+```text
 cli.py                     CLI entry point (create, validate, send, report)
 peppol_sender/
   ubl.py                   EN-16931 compliant UBL 2.1 XML generation
