@@ -405,9 +405,7 @@ def generate_credit_note(data: dict, *, embed_pdf: bool = False) -> bytes:
           cac:BillingReference/cac:InvoiceDocumentReference and identifies
           the invoice being corrected — strongly recommended for downstream
           accounting reconciliation.
-    embed_pdf: same semantics as `generate_ubl`. Note that the embedded PDF
-               template currently still says "Invoice" regardless of document
-               type; a document-type-aware template is a deferred follow-up.
+    embed_pdf: same semantics as `generate_ubl`.
     Returns: bytes (UTF-8)
     """
     return _build_document(

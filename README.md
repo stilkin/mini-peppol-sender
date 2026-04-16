@@ -187,7 +187,6 @@ All documented run modes bind the app to `127.0.0.1`, so out of the box it is on
 
 - **No local Schematron / EN-16931 business rule validation.** The tool runs structural checks and XSD validation locally, but Schematron rules (e.g. `BR-CL-14`, `BR-CL-23`, `BR-CO-26`) are caught server-side by Peppyrus after transmission. You can retrieve the report with `cli.py report --id ...` or see the result inline in the web UI.
 - **Credit notes are CLI-only.** `cli.py create --type credit-note` and `cli.py send` produce and transmit compliant UBL 2.1 Credit Notes (EN-16931 / PEPPOL BIS Billing 3.0). The web UI does not yet offer a credit-note form — use the CLI until the follow-up change lands.
-- **Embedded PDF visual of a credit note still says "Invoice".** The PDF template is not yet document-type aware. Use `--no-pdf` on the CLI `create` to skip the visual, or accept the mislabel as cosmetic until a dedicated follow-up fixes the template.
 - **Debit notes and other UBL document types** are not supported.
 - **API retry is limited** to 3 attempts on 5xx errors with exponential backoff; there's no persistent retry queue.
 - **Single-user assumption** — the web UI has no authentication. The API key in `.env` belongs to one organisation and localStorage state is per-browser.
