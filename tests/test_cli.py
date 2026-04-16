@@ -332,11 +332,12 @@ def test_cmd_send_document_type_override_honored(tmp_path: Path, monkeypatch: py
     captured: dict = {}
     monkeypatch.setenv("PEPPYRUS_API_KEY", "test-key")
     monkeypatch.setenv("PEPPOL_SENDER_ID", "9925:test")
-    monkeypatch.setattr(
-        cli,
-        "package_message",
-        lambda xml, s, r, p, d: captured.setdefault("document_type", d) or {},
-    )
+
+    def fake_package(xml_bytes: bytes, sender: str, recipient: str, process_type: str, document_type: str) -> dict:
+        captured["document_type"] = document_type
+        return {}
+
+    monkeypatch.setattr(cli, "package_message", fake_package)
     monkeypatch.setattr(cli, "send_message", lambda *a, **kw: {"status_code": 200, "json": {}})
 
     args = MagicMock()

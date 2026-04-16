@@ -286,6 +286,28 @@ def test_rendered_html_contains_translated_labels_fr() -> None:
     assert "heure" in html
 
 
+def test_rendered_html_credit_note_title() -> None:
+    from peppol_sender.pdf import _env
+
+    cn = {**SAMPLE_INVOICE, "credit_note_type_code": "381", "language": "en"}
+    cn.pop("due_date", None)
+    vm = _build_view_model(cn)
+    html = _env.get_template("invoice.html").render(**vm)
+    assert "Credit Note" in html
+    assert ">Invoice<" not in html
+
+
+def test_rendered_html_credit_note_title_nl() -> None:
+    from peppol_sender.pdf import _env
+
+    cn = {**SAMPLE_INVOICE, "credit_note_type_code": "381", "language": "nl"}
+    cn.pop("due_date", None)
+    vm = _build_view_model(cn)
+    html = _env.get_template("invoice.html").render(**vm)
+    assert "Creditnota" in html
+    assert ">Factuur<" not in html
+
+
 def test_rendered_html_unknown_language_still_renders() -> None:
     from peppol_sender.pdf import _env
 

@@ -111,11 +111,11 @@ def validate_basic(xml_bytes: bytes) -> list[dict]:
             )
 
     rules.extend(_check_br50(root, root_tag))
-    rules.extend(_check_date_formats(root))
+    rules.extend(_check_date_formats(root, root_tag))
     return rules
 
 
-def _check_date_formats(root: ET.Element) -> list[dict]:
+def _check_date_formats(root: ET.Element, root_tag: str) -> list[dict]:
     """Local mirror of PEPPOL-EN16931-F001: every date element MUST be YYYY-MM-DD.
 
     Catches empty or malformed dates before transmission so they don't surface
@@ -133,7 +133,7 @@ def _check_date_formats(root: ET.Element) -> list[dict]:
             {
                 "id": "LOCAL-F001",
                 "type": "FATAL",
-                "location": f"/*:{name}",
+                "location": f"/*:{root_tag}/*:{name}",
                 "message": f"F001: {name} must be formatted YYYY-MM-DD (got {text!r}).",
             }
         )

@@ -28,6 +28,7 @@ _NBSP = "\u00a0"
 _TRANSLATIONS: Mapping[str, Mapping[str, str]] = {
     "en": {
         "invoice": "Invoice",
+        "credit_note": "Credit Note",
         "from": "From",
         "bill_to": "Bill to",
         "description": "Description",
@@ -51,6 +52,7 @@ _TRANSLATIONS: Mapping[str, Mapping[str, str]] = {
     },
     "nl": {
         "invoice": "Factuur",
+        "credit_note": "Creditnota",
         "from": "Van",
         "bill_to": "Aan",
         "description": "Omschrijving",
@@ -74,6 +76,7 @@ _TRANSLATIONS: Mapping[str, Mapping[str, str]] = {
     },
     "fr": {
         "invoice": "Facture",
+        "credit_note": "Note de crédit",
         "from": "De",
         "bill_to": "À",
         "description": "Description",
@@ -97,6 +100,7 @@ _TRANSLATIONS: Mapping[str, Mapping[str, str]] = {
     },
     "de": {
         "invoice": "Rechnung",
+        "credit_note": "Gutschrift",
         "from": "Von",
         "bill_to": "An",
         "description": "Beschreibung",

@@ -36,6 +36,9 @@ def _build_view_model(invoice: dict[str, Any]) -> dict[str, Any]:
     currency = invoice.get("currency", "EUR")
     lang = (invoice.get("language") or "en").lower()
     labels = i18n.all_labels(lang)
+    is_credit_note = "credit_note_type_code" in invoice
+    if is_credit_note:
+        labels["invoice"] = labels["credit_note"]
     lines = invoice.get("lines", [])
 
     groups: dict[tuple[str, Decimal], Decimal] = defaultdict(lambda: Decimal("0"))
