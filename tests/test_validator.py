@@ -175,8 +175,8 @@ def test_f001_triggers_on_prefixed_line_service_date() -> None:
     xml = generate_ubl(invoice)
     rules = [r for r in validate_basic(xml) if r["id"] == "LOCAL-F001"]
     locations = [r["location"] for r in rules]
-    assert "/*:StartDate" in locations
-    assert "/*:EndDate" in locations
+    assert "/*:Invoice/*:StartDate" in locations
+    assert "/*:Invoice/*:EndDate" in locations
 
 
 def test_f001_triggers_on_empty_issue_date() -> None:
@@ -209,9 +209,7 @@ def test_validate_basic_accepts_valid_credit_note() -> None:
 
 def test_validate_basic_missing_credit_note_type_code() -> None:
     # Generate a valid credit note then mutate the XML to strip the type code.
-    xml = generate_credit_note(VALID_CREDIT_NOTE).replace(
-        b"<cbc:CreditNoteTypeCode>381</cbc:CreditNoteTypeCode>\n  ", b""
-    )
+    xml = generate_credit_note(VALID_CREDIT_NOTE).replace(b"<cbc:CreditNoteTypeCode>381</cbc:CreditNoteTypeCode>", b"")
     rules = validate_basic(xml)
     assert any(r["id"] == "LOCAL-MISSING-CreditNoteTypeCode" for r in rules)
 
