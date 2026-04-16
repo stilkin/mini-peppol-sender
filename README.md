@@ -222,6 +222,14 @@ Pre-commit hooks (Ruff + MyPy) are installed via `uv run pre-commit install`. Co
 - **API retry is limited** to 3 attempts on 5xx errors with exponential backoff; there's no persistent retry queue.
 - **Single-user assumption** — the web UI has no authentication. The API key in `.env` belongs to one organisation and localStorage state is per-browser.
 
+## Support
+
+If you enjoy Peppify and want to support its development, consider buying me a drink:
+
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/stilkin)
+
+Your support helps me continue developing and improving Peppify! ☕
+
 ## License
 
 [PolyForm Noncommercial License 1.0.0](LICENSE)
