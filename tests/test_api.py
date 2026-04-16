@@ -4,6 +4,9 @@ import base64
 from unittest.mock import MagicMock, patch
 
 from peppol_sender.api import (
+    CREDIT_NOTE_DOCUMENT_TYPE,
+    INVOICE_DOCUMENT_TYPE,
+    PROCESS_TYPE,
     get_org_info,
     get_report,
     lookup_participant,
@@ -177,3 +180,50 @@ def test_session_has_retry_adapter() -> None:
     assert isinstance(adapter, HTTPAdapter)
     assert adapter.max_retries.total == 3  # type: ignore[union-attr]
     assert 503 in adapter.max_retries.status_forcelist  # type: ignore[union-attr]
+
+
+# --- Document-type constants ---
+
+
+def test_document_type_constants_exported() -> None:
+    # Both constants must be non-empty strings and carry the BIS Billing 3.0
+    # shape. Exact equality checks are brittle across versions, so assert
+    # the distinguishing fragment instead.
+    assert isinstance(INVOICE_DOCUMENT_TYPE, str)
+    assert "Invoice-2::Invoice" in INVOICE_DOCUMENT_TYPE
+    assert "billing:3.0" in INVOICE_DOCUMENT_TYPE
+
+    assert isinstance(CREDIT_NOTE_DOCUMENT_TYPE, str)
+    assert "CreditNote-2::CreditNote" in CREDIT_NOTE_DOCUMENT_TYPE
+    assert "billing:3.0" in CREDIT_NOTE_DOCUMENT_TYPE
+
+    # And they must not be equal to each other.
+    assert INVOICE_DOCUMENT_TYPE != CREDIT_NOTE_DOCUMENT_TYPE
+
+
+def test_process_type_constant_exported() -> None:
+    assert isinstance(PROCESS_TYPE, str)
+    assert "billing:01:1.0" in PROCESS_TYPE
+
+
+def test_package_message_with_credit_note_type() -> None:
+    msg = package_message(
+        SAMPLE_XML,
+        "9925:sender",
+        "9908:recipient",
+        PROCESS_TYPE,
+        CREDIT_NOTE_DOCUMENT_TYPE,
+    )
+    assert msg["documentType"] == CREDIT_NOTE_DOCUMENT_TYPE
+    assert msg["processType"] == PROCESS_TYPE
+
+
+def test_package_message_with_invoice_type() -> None:
+    msg = package_message(
+        SAMPLE_XML,
+        "9925:sender",
+        "9908:recipient",
+        PROCESS_TYPE,
+        INVOICE_DOCUMENT_TYPE,
+    )
+    assert msg["documentType"] == INVOICE_DOCUMENT_TYPE

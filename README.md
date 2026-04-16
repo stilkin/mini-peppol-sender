@@ -102,10 +102,13 @@ uv run python cli.py create --input sample_invoice.json --out invoice.xml --no-p
 # 1c. Override the PDF language (en / nl / fr / de — falls back to invoice JSON or 'en')
 uv run python cli.py create --input sample_invoice.json --out invoice.xml --language nl
 
-# 2. Validate it (structural checks + XSD)
+# 1d. Generate a UBL Credit Note instead of an Invoice
+uv run python cli.py create --type credit-note --input credit_note.json --out cn.xml --no-pdf
+
+# 2. Validate it — works on both invoices and credit notes (document type auto-detected)
 uv run python cli.py validate --file invoice.xml
 
-# 3. Send it to a recipient on the PEPPOL network
+# 3. Send it to a recipient on the PEPPOL network — document type auto-detected from the XML root
 uv run python cli.py send --file invoice.xml --recipient 0208:be0674415660
 
 # 4. Fetch the validation/transmission report for a sent message
@@ -213,9 +216,19 @@ Pre-commit hooks (Ruff + MyPy) are installed via `uv run pre-commit install`. Co
 ## Limitations
 
 - **No local Schematron / EN-16931 business rule validation.** The tool runs structural checks and XSD validation locally, but Schematron rules (e.g. `BR-CL-14`, `BR-CL-23`, `BR-CO-26`) are caught server-side by Peppyrus after transmission. You can retrieve the report with `cli.py report --id ...` or see the result inline in the web UI.
-- **Only the Invoice document type is supported** — no credit notes, debit notes, or other UBL document types.
+- **Credit notes are CLI-only.** `cli.py create --type credit-note` and `cli.py send` produce and transmit compliant UBL 2.1 Credit Notes (EN-16931 / PEPPOL BIS Billing 3.0). The web UI does not yet offer a credit-note form — use the CLI until the follow-up change lands.
+- **Embedded PDF visual of a credit note still says "Invoice".** The PDF template is not yet document-type aware. Use `--no-pdf` on the CLI `create` to skip the visual, or accept the mislabel as cosmetic until a dedicated follow-up fixes the template.
+- **Debit notes and other UBL document types** are not supported.
 - **API retry is limited** to 3 attempts on 5xx errors with exponential backoff; there's no persistent retry queue.
 - **Single-user assumption** — the web UI has no authentication. The API key in `.env` belongs to one organisation and localStorage state is per-browser.
+
+## Support
+
+If you enjoy Peppify and want to support its development, consider buying me a drink:
+
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/stilkin)
+
+Your support helps me continue developing and improving Peppify! ☕
 
 ## License
 

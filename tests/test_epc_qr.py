@@ -153,6 +153,21 @@ def test_payload_truncation_of_both_reference_and_name() -> None:
     assert fields[10] == "" or fields[10].startswith("🔥")
 
 
+def test_payload_returns_none_when_non_truncatable_fields_exceed_limit() -> None:
+    # Pathological input: an IBAN longer than the whole EPC byte budget.
+    # Name and reference get drained by the truncation loops, but the
+    # IBAN itself keeps the payload over 331 bytes, so build_epc_payload
+    # MUST return None rather than emit an oversized payload.
+    inv = {
+        **SAMPLE_INVOICE,
+        "payment_means": {
+            **SAMPLE_INVOICE["payment_means"],
+            "iban": "B" * 400,
+        },
+    }
+    assert build_epc_payload(inv, Decimal("1000.00")) is None
+
+
 def test_payload_truncation_shrinks_reference_before_name() -> None:
     # Long enough that truncation must happen, but short enough that the
     # reference can absorb it all (name stays intact).

@@ -105,7 +105,7 @@ The generator MUST produce a fully EN-16931 compliant UBL 2.1 Invoice **or Credi
 
 ### Requirement: CLI create subcommand
 
-The `create` subcommand reads a JSON file and writes UBL XML to disk. It supports both invoice and credit-note document types via a `--type` flag.
+The `create` subcommand MUST read a JSON file and write UBL XML to disk. It MUST support both invoice and credit-note document types via a `--type {invoice,credit-note}` flag that defaults to `invoice`.
 
 #### Scenario: Create invoice from JSON file (default)
 

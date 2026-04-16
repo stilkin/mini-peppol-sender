@@ -1,21 +1,28 @@
-"""UBL 2.1 invoice generator (EN-16931 compliant).
+"""UBL 2.1 document generator (EN-16931 compliant).
 
-Generates PEPPOL BIS Billing 3.0 compliant UBL 2.1 Invoice XML from a JSON-like
-invoice data structure. Supports VAT-exempt businesses (tax category E/O).
+Generates PEPPOL BIS Billing 3.0 compliant UBL 2.1 Invoice and Credit Note XML
+from a JSON-like data structure. Both document types share the same helpers for
+parties, tax totals, payment means, and legal monetary totals; only the root
+element, default namespace, type-code element, and line wrapper tag differ.
+
+Supports VAT-exempt businesses (tax category E/O).
 """
 
 import base64
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import date
 from decimal import Decimal
 from xml.dom import minidom
 from xml.etree import ElementTree as ET
 
 _NS = {
-    "": "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2",
     "cac": "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2",
     "cbc": "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2",
 }
+
+_INVOICE_NS = "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+_CREDIT_NOTE_NS = "urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2"
 
 _CUSTOMIZATION_ID = "urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0"
 _PROFILE_ID = "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0"
@@ -193,14 +200,27 @@ def _add_legal_monetary_total(inv: ET.Element, line_sum: Decimal, tax_total: Dec
     _sub(lmt, "cbc", "PayableAmount", f"{line_sum + tax_total:.2f}", currencyID=currency)
 
 
-def _add_invoice_line(inv: ET.Element, line: dict, currency: str) -> Decimal:
-    """Add a single InvoiceLine element. Returns the line extension amount."""
-    il = _sub(inv, "cac", "InvoiceLine")
+def _add_document_line(
+    parent: ET.Element,
+    line: dict,
+    currency: str,
+    *,
+    line_tag: str,
+    qty_tag: str,
+) -> Decimal:
+    """Add a single line element (InvoiceLine or CreditNoteLine).
+
+    Internal element ordering is identical between the two document types;
+    only the wrapper tag and the quantity element name differ (UBL uses
+    `InvoicedQuantity` for invoices and `CreditedQuantity` for credit notes).
+    Returns the line extension amount.
+    """
+    il = _sub(parent, "cac", line_tag)
     _sub(il, "cbc", "ID", str(line.get("id", "1")))
 
     qty = line.get("quantity", 1)
     unit = line.get("unit", "EA")
-    _sub(il, "cbc", "InvoicedQuantity", str(qty), unitCode=unit)
+    _sub(il, "cbc", qty_tag, str(qty), unitCode=unit)
 
     ext_amt = _dec(line.get("line_extension_amount", line.get("unit_price", 0) * qty))
     _sub(il, "cbc", "LineExtensionAmount", f"{ext_amt:.2f}", currencyID=currency)
@@ -232,34 +252,81 @@ def _add_invoice_line(inv: ET.Element, line: dict, currency: str) -> Decimal:
     return ext_amt
 
 
-def generate_ubl(invoice: dict, *, embed_pdf: bool = False) -> bytes:
-    """Generate an EN-16931 compliant UBL 2.1 Invoice XML.
+def _add_invoice_line(inv: ET.Element, line: dict, currency: str) -> Decimal:
+    return _add_document_line(inv, line, currency, line_tag="InvoiceLine", qty_tag="InvoicedQuantity")
 
-    invoice: dict with keys: invoice_number, issue_date, due_date, currency,
-             invoice_type_code, payment_terms, payment_means, seller, buyer, lines
-    embed_pdf: when True, render the invoice as a PDF and embed it as a
-               cac:AdditionalDocumentReference (PEPPOL BIS Billing 3.0 R008
-               visual representation). Defaults to False so existing callers
-               and the test suite remain fast and byte-stable; CLI and webapp
-               call sites pass True explicitly.
-    Returns: bytes (UTF-8)
+
+def _add_credit_note_line(inv: ET.Element, line: dict, currency: str) -> Decimal:
+    return _add_document_line(inv, line, currency, line_tag="CreditNoteLine", qty_tag="CreditedQuantity")
+
+
+def _add_billing_reference(parent: ET.Element, data: dict) -> None:
+    """Emit cac:BillingReference/cac:InvoiceDocumentReference when requested.
+
+    BT-25 / BT-26 on EN-16931. Accepted on both Invoice (for corrective-invoice
+    series) and CreditNote (to name the invoice being corrected). The UBL
+    xs:sequence position is the same for both document types — after the
+    header block and before cac:AdditionalDocumentReference.
+
+    No-op when the input dict has no `billing_reference` key, so existing
+    invoice output is unaffected.
     """
+    br = data.get("billing_reference")
+    if not br:
+        return
+    wrapper = _sub(parent, "cac", "BillingReference")
+    idr = _sub(wrapper, "cac", "InvoiceDocumentReference")
+    _sub(idr, "cbc", "ID", str(br.get("id", "")))
+    if br.get("issue_date"):
+        _sub(idr, "cbc", "IssueDate", br["issue_date"])
+
+
+def _build_document(
+    data: dict,
+    *,
+    default_ns: str,
+    root_tag: str,
+    type_code_tag: str,
+    type_code_default: str,
+    type_code_key: str,
+    add_line: Callable[[ET.Element, dict, str], Decimal],
+    supports_due_date: bool,
+    embed_pdf: bool = False,
+) -> bytes:
+    """Shared UBL document builder for Invoice and CreditNote.
+
+    Invoice and CreditNote differ only in the default namespace, the root
+    element name, the type-code element name and its default value, the
+    JSON key that overrides the type code, the line-item wrapper, and one
+    header field: the Invoice schema defines `cbc:DueDate`, but the
+    CreditNote schema does not (credit-note payment timing lives under
+    `cac:PaymentMeans/cbc:PaymentDueDate` instead). Everything else
+    (parties, tax totals, payment means, legal monetary totals) is
+    identical and comes from the shared helpers above.
+
+    Element order is fixed by the UBL xs:sequence and matches the
+    `schemas/xsd/maindoc/UBL-{Invoice,CreditNote}-2.1.xsd` definitions.
+    """
+    ET.register_namespace("", default_ns)
     for prefix, uri in _NS.items():
         ET.register_namespace(prefix, uri)
 
-    inv = ET.Element(_tag("", "Invoice"))
-    currency = invoice.get("currency", "EUR")
+    root = ET.Element(f"{{{default_ns}}}{root_tag}")
+    currency = data.get("currency", "EUR")
 
     # Document header (order matters for XSD compliance)
-    _sub(inv, "cbc", "CustomizationID", _CUSTOMIZATION_ID)
-    _sub(inv, "cbc", "ProfileID", _PROFILE_ID)
-    _sub(inv, "cbc", "ID", str(invoice.get("invoice_number", "INV-0001")))
-    _sub(inv, "cbc", "IssueDate", invoice.get("issue_date", date.today().isoformat()))
-    if invoice.get("due_date"):
-        _sub(inv, "cbc", "DueDate", invoice["due_date"])
-    _sub(inv, "cbc", "InvoiceTypeCode", str(invoice.get("invoice_type_code", "380")))
-    _sub(inv, "cbc", "DocumentCurrencyCode", currency)
-    _sub(inv, "cbc", "BuyerReference", str(invoice.get("buyer_reference", invoice.get("invoice_number", "N/A"))))
+    _sub(root, "cbc", "CustomizationID", _CUSTOMIZATION_ID)
+    _sub(root, "cbc", "ProfileID", _PROFILE_ID)
+    _sub(root, "cbc", "ID", str(data.get("invoice_number", "INV-0001")))
+    _sub(root, "cbc", "IssueDate", data.get("issue_date", date.today().isoformat()))
+    if supports_due_date and data.get("due_date"):
+        _sub(root, "cbc", "DueDate", data["due_date"])
+    _sub(root, "cbc", type_code_tag, str(data.get(type_code_key, type_code_default)))
+    _sub(root, "cbc", "DocumentCurrencyCode", currency)
+    _sub(root, "cbc", "BuyerReference", str(data.get("buyer_reference", data.get("invoice_number", "N/A"))))
+
+    # BillingReference (optional, BT-25/BT-26) — must precede AdditionalDocumentReference.
+    _add_billing_reference(root, data)
 
     # Visual representation — positioned before parties per UBL xs:sequence.
     # Lazy import of render_pdf so that Pango/Cairo are only required when
@@ -267,36 +334,90 @@ def generate_ubl(invoice: dict, *, embed_pdf: bool = False) -> bytes:
     if embed_pdf:
         from peppol_sender.pdf import render_pdf
 
-        document_id = str(invoice.get("invoice_number", "INV-0001"))
-        _add_additional_document_reference(inv, render_pdf(invoice), document_id)
+        document_id = str(data.get("invoice_number", "INV-0001"))
+        _add_additional_document_reference(root, render_pdf(data), document_id)
 
     # Parties
-    _add_party(inv, "AccountingSupplierParty", invoice.get("seller", {}), currency)
-    _add_party(inv, "AccountingCustomerParty", invoice.get("buyer", {}), currency)
+    _add_party(root, "AccountingSupplierParty", data.get("seller", {}), currency)
+    _add_party(root, "AccountingCustomerParty", data.get("buyer", {}), currency)
 
     # PaymentMeans — must come before PaymentTerms per UBL xs:sequence
-    _add_payment_means(inv, invoice, invoice.get("seller", {}).get("name", ""))
+    _add_payment_means(root, data, data.get("seller", {}).get("name", ""))
 
     # PaymentTerms
-    if invoice.get("payment_terms"):
-        pt = _sub(inv, "cac", "PaymentTerms")
-        _sub(pt, "cbc", "Note", invoice["payment_terms"])
+    if data.get("payment_terms"):
+        pt = _sub(root, "cac", "PaymentTerms")
+        _sub(pt, "cbc", "Note", data["payment_terms"])
 
     # Tax
-    lines = invoice.get("lines", [])
-    tax_total = _add_tax_total(inv, lines, currency)
+    lines = data.get("lines", [])
+    tax_total = _add_tax_total(root, lines, currency)
 
     # Totals
     line_sum = Decimal("0")
     for line in lines:
         line_sum += _dec(line.get("line_extension_amount", line.get("unit_price", 0) * line.get("quantity", 1)))
-    _add_legal_monetary_total(inv, line_sum, tax_total, currency)
+    _add_legal_monetary_total(root, line_sum, tax_total, currency)
 
-    # Invoice lines
+    # Document lines
     for line in lines:
-        _add_invoice_line(inv, line, currency)
+        add_line(root, line, currency)
 
     # Pretty print
-    rough = ET.tostring(inv, encoding="utf-8")
+    rough = ET.tostring(root, encoding="utf-8")
     parsed = minidom.parseString(rough)
     return parsed.toprettyxml(indent="  ", encoding="utf-8")
+
+
+def generate_ubl(invoice: dict, *, embed_pdf: bool = False) -> bytes:
+    """Generate an EN-16931 compliant UBL 2.1 Invoice XML.
+
+    invoice: dict with keys: invoice_number, issue_date, due_date, currency,
+             invoice_type_code, payment_terms, payment_means, seller, buyer,
+             lines, and optional billing_reference (BT-25/BT-26).
+    embed_pdf: when True, render the invoice as a PDF and embed it as a
+               cac:AdditionalDocumentReference (PEPPOL BIS Billing 3.0 R008
+               visual representation). Defaults to False so existing callers
+               and the test suite remain fast and byte-stable; CLI and webapp
+               call sites pass True explicitly.
+    Returns: bytes (UTF-8)
+    """
+    return _build_document(
+        invoice,
+        default_ns=_INVOICE_NS,
+        root_tag="Invoice",
+        type_code_tag="InvoiceTypeCode",
+        type_code_default="380",
+        type_code_key="invoice_type_code",
+        add_line=_add_invoice_line,
+        supports_due_date=True,
+        embed_pdf=embed_pdf,
+    )
+
+
+def generate_credit_note(data: dict, *, embed_pdf: bool = False) -> bytes:
+    """Generate an EN-16931 compliant UBL 2.1 Credit Note XML.
+
+    data: same shape as the invoice dict accepted by `generate_ubl`. The
+          `credit_note_type_code` key overrides the default of `381`
+          (UN/CEFACT commercial credit note). If a `billing_reference` block
+          is present (id + issue_date), it is emitted as
+          cac:BillingReference/cac:InvoiceDocumentReference and identifies
+          the invoice being corrected — strongly recommended for downstream
+          accounting reconciliation.
+    embed_pdf: same semantics as `generate_ubl`. Note that the embedded PDF
+               template currently still says "Invoice" regardless of document
+               type; a document-type-aware template is a deferred follow-up.
+    Returns: bytes (UTF-8)
+    """
+    return _build_document(
+        data,
+        default_ns=_CREDIT_NOTE_NS,
+        root_tag="CreditNote",
+        type_code_tag="CreditNoteTypeCode",
+        type_code_default="381",
+        type_code_key="credit_note_type_code",
+        add_line=_add_credit_note_line,
+        supports_due_date=False,
+        embed_pdf=embed_pdf,
+    )
