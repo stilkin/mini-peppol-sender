@@ -1,9 +1,9 @@
 """Command-line interface for peppol_sender minimal workflow.
 
 Commands:
-  create --input invoice.json --out invoice.xml
-  validate --file invoice.xml
-  send --file invoice.xml --recipient RECIPIENT_ID
+  create --type {invoice,credit-note} --input data.json --out doc.xml
+  validate --file doc.xml
+  send --file doc.xml --recipient RECIPIENT_ID
 
 Environment variables (preferred via .env):
   PEPPYRUS_API_KEY, PEPPOL_SENDER_ID, PEPPYRUS_BASE_URL
@@ -12,14 +12,38 @@ Environment variables (preferred via .env):
 import argparse
 import json
 import os
+from xml.etree import ElementTree as ET
 
 from dotenv import load_dotenv
 
-from peppol_sender.api import get_report, package_message, send_message
-from peppol_sender.ubl import generate_ubl
+from peppol_sender.api import (
+    CREDIT_NOTE_DOCUMENT_TYPE,
+    INVOICE_DOCUMENT_TYPE,
+    PROCESS_TYPE,
+    get_report,
+    package_message,
+    send_message,
+)
+from peppol_sender.ubl import generate_credit_note, generate_ubl
 from peppol_sender.validator import validate_basic, validate_xsd
 
 load_dotenv()
+
+
+def _detect_document_type(xml_bytes: bytes) -> str:
+    """Return 'invoice' or 'credit-note' based on the XML root element.
+
+    Raises ValueError on anything else. `cmd_send` relies on this to pick
+    the correct Peppyrus documentType string; malformed or unexpected roots
+    are caught earlier by `validate_basic()` and produce LOCAL-UNKNOWN-ROOT.
+    """
+    root = ET.fromstring(xml_bytes)
+    local = root.tag.rsplit("}", 1)[-1]
+    if local == "Invoice":
+        return "invoice"
+    if local == "CreditNote":
+        return "credit-note"
+    raise ValueError(f"Unknown document root element {local!r}: expected 'Invoice' or 'CreditNote'.")
 
 
 def cmd_create(args: argparse.Namespace) -> None:
@@ -27,10 +51,15 @@ def cmd_create(args: argparse.Namespace) -> None:
         data = json.load(f)
     if args.language:
         data["language"] = args.language
-    xml = generate_ubl(data, embed_pdf=args.embed_pdf)
+    if args.type == "credit-note":
+        xml = generate_credit_note(data, embed_pdf=args.embed_pdf)
+        label = "credit note"
+    else:
+        xml = generate_ubl(data, embed_pdf=args.embed_pdf)
+        label = "invoice"
     with open(args.out, "wb") as f:
         f.write(xml)
-    print(f"Generated UBL invoice: {args.out}")
+    print(f"Generated UBL {label}: {args.out}")
 
 
 def cmd_validate(args: argparse.Namespace) -> None:
@@ -65,12 +94,12 @@ def cmd_send(args: argparse.Namespace) -> None:
             print(f" - {r['id']}: {r['message']}")
         return
 
-    process_type = args.processType or "cenbii-procid-ubl::urn:fdc:peppol.eu:2017:poacc:billing:01:1.0"
-    document_type = (
-        args.documentType
-        or "busdox-docid-qns::urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
-        "::Invoice##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1"
-    )
+    process_type = args.processType or PROCESS_TYPE
+    if args.documentType:
+        document_type = args.documentType
+    else:
+        detected = _detect_document_type(xml)
+        document_type = CREDIT_NOTE_DOCUMENT_TYPE if detected == "credit-note" else INVOICE_DOCUMENT_TYPE
 
     message = package_message(xml, sender, args.recipient, process_type, document_type)
     resp = send_message(message, api_key, base_url)
@@ -110,6 +139,12 @@ def main() -> None:
     sub = p.add_subparsers(dest="cmd")
 
     c = sub.add_parser("create")
+    c.add_argument(
+        "--type",
+        choices=["invoice", "credit-note"],
+        default="invoice",
+        help="Document type to generate (default: invoice)",
+    )
     c.add_argument("--input", default="sample_invoice.json")
     c.add_argument("--out", default="invoice.xml")
     c.add_argument(

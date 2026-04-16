@@ -72,7 +72,7 @@ The system MUST validate UBL XML against the official UBL 2.1 XSD schema matchin
 
 ### Requirement: CLI validate subcommand
 
-The `validate` subcommand reads an XML file and runs both structural and XSD checks. The document type is detected from the XML root element; no flag is required.
+The `validate` subcommand MUST read an XML file and run both structural and XSD checks. The document type MUST be detected from the XML root element; no flag is required.
 
 #### Scenario: Validate passing invoice
 

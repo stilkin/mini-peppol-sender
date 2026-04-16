@@ -1,7 +1,7 @@
 """Tests for peppol_sender.validator — structural and XSD validation."""
 
-from peppol_sender.ubl import generate_ubl
-from peppol_sender.validator import validate_basic, validate_xsd
+from peppol_sender.ubl import generate_credit_note, generate_ubl
+from peppol_sender.validator import _schema_for, validate_basic, validate_xsd
 
 VALID_INVOICE = {
     "invoice_number": "INV-001",
@@ -184,3 +184,87 @@ def test_f001_triggers_on_empty_issue_date() -> None:
     xml = generate_ubl({**VALID_INVOICE, "issue_date": ""})
     rules = [r for r in validate_basic(xml) if r["id"] == "LOCAL-F001"]
     assert any("IssueDate" in r["location"] for r in rules)
+
+
+# --- Credit note validation ---
+
+
+VALID_CREDIT_NOTE = {
+    "invoice_number": "CN-001",
+    "issue_date": "2025-02-01",
+    "credit_note_type_code": "381",
+    "currency": "EUR",
+    "billing_reference": {"id": "INV-001", "issue_date": "2025-01-01"},
+    "seller": VALID_INVOICE["seller"],
+    "buyer": VALID_INVOICE["buyer"],
+    "lines": VALID_INVOICE["lines"],
+}
+
+
+def test_validate_basic_accepts_valid_credit_note() -> None:
+    xml = generate_credit_note(VALID_CREDIT_NOTE)
+    rules = validate_basic(xml)
+    assert rules == []
+
+
+def test_validate_basic_missing_credit_note_type_code() -> None:
+    # Generate a valid credit note then mutate the XML to strip the type code.
+    xml = generate_credit_note(VALID_CREDIT_NOTE).replace(
+        b"<cbc:CreditNoteTypeCode>381</cbc:CreditNoteTypeCode>\n  ", b""
+    )
+    rules = validate_basic(xml)
+    assert any(r["id"] == "LOCAL-MISSING-CreditNoteTypeCode" for r in rules)
+
+
+def test_validate_basic_missing_credit_note_line() -> None:
+    # Build a credit note with no lines to trigger the missing-line rule.
+    xml = generate_credit_note({**VALID_CREDIT_NOTE, "lines": []})
+    rules = validate_basic(xml)
+    assert any(r["id"] == "LOCAL-MISSING-CreditNoteLine" for r in rules)
+
+
+def test_validate_basic_unknown_root() -> None:
+    xml = b'<?xml version="1.0"?><Foo xmlns="urn:x"/>'
+    rules = validate_basic(xml)
+    assert len(rules) == 1
+    assert rules[0]["id"] == "LOCAL-UNKNOWN-ROOT"
+    assert rules[0]["type"] == "FATAL"
+
+
+def test_validate_basic_error_locations_use_credit_note_root() -> None:
+    # When a credit note is missing elements, the location strings should
+    # report /*:CreditNote/... not /*:Invoice/... so users aren't confused.
+    xml = generate_credit_note({**VALID_CREDIT_NOTE, "lines": []})
+    rules = [r for r in validate_basic(xml) if r["id"].startswith("LOCAL-MISSING")]
+    for r in rules:
+        assert r["location"].startswith("/*:CreditNote/"), r["location"]
+
+
+def test_validate_xsd_selects_credit_note_schema() -> None:
+    xml = generate_credit_note(VALID_CREDIT_NOTE)
+    assert validate_xsd(xml) == []
+
+
+def test_validate_xsd_unknown_root_returns_fatal() -> None:
+    # Bypass validate_basic and call validate_xsd directly on an unknown root.
+    xml = b'<?xml version="1.0"?><Foo xmlns="urn:x"/>'
+    rules = validate_xsd(xml)
+    assert len(rules) == 1
+    assert rules[0]["id"] == "LOCAL-UNKNOWN-ROOT"
+
+
+def test_validate_xsd_unparseable_returns_parse_error() -> None:
+    rules = validate_xsd(b"<not-xml")
+    assert len(rules) == 1
+    assert rules[0]["id"] == "LOCAL-XML-PARSE"
+
+
+def test_schema_cache_loads_each_doc_type_once() -> None:
+    _schema_for.cache_clear()
+    _schema_for("Invoice")
+    _schema_for("Invoice")
+    _schema_for("CreditNote")
+    _schema_for("CreditNote")
+    info = _schema_for.cache_info()
+    assert info.hits == 2
+    assert info.misses == 2

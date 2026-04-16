@@ -1,11 +1,14 @@
 """Tests for peppol_sender.ubl — UBL 2.1 invoice generation."""
 
+from pathlib import Path
 from xml.etree import ElementTree as ET
 
-from peppol_sender.ubl import generate_ubl
+from peppol_sender.ubl import generate_credit_note, generate_ubl
 
 CBC = "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
 CAC = "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+
+_FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def _parse(invoice: dict) -> ET.Element:
@@ -603,3 +606,182 @@ def test_embed_pdf_passes_xsd() -> None:
     xml = generate_ubl(SAMPLE_INVOICE, embed_pdf=True)
     rules = validate_xsd(xml)
     assert rules == []
+
+
+def test_generate_ubl_output_byte_identical_to_reference() -> None:
+    # Regression guard for the shared line/document refactor. The reference
+    # file was captured from the pre-refactor generate_ubl(SAMPLE_INVOICE)
+    # output. Any drift in element ordering, attribute serialisation, or
+    # whitespace will fail this test. Do not regenerate casually.
+    expected = (_FIXTURES / "reference_invoice.xml").read_bytes()
+    actual = generate_ubl(SAMPLE_INVOICE)
+    assert actual == expected
+
+
+# --- Credit note generation ---
+
+
+# Mirror SAMPLE_INVOICE with credit-note-specific fields. The billing_reference
+# block is included by default so the common case (credit note referencing the
+# invoice it corrects) is exercised by every credit-note test that uses this
+# fixture. No due_date — CreditNote schema does not allow it.
+SAMPLE_CREDIT_NOTE = {
+    "invoice_number": "CN-TEST-001",
+    "issue_date": "2025-02-01",
+    "credit_note_type_code": "381",
+    "currency": "EUR",
+    "payment_terms": "Refund within 14 days",
+    "billing_reference": {
+        "id": "INV-TEST-001",
+        "issue_date": "2025-01-15",
+    },
+    "seller": SAMPLE_INVOICE["seller"],
+    "buyer": SAMPLE_INVOICE["buyer"],
+    "lines": [
+        {
+            "id": "1",
+            "description": "Refund for consulting (hours cancelled)",
+            "quantity": 2,
+            "unit": "HUR",
+            "unit_price": 150.00,
+            "tax_category": "E",
+            "tax_percent": 0,
+        }
+    ],
+}
+
+
+def _parse_cn(data: dict) -> ET.Element:
+    return ET.fromstring(generate_credit_note(data))
+
+
+def test_credit_note_root_element() -> None:
+    root = _parse_cn(SAMPLE_CREDIT_NOTE)
+    assert root.tag.rsplit("}", 1)[-1] == "CreditNote"
+    assert root.tag.startswith("{urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2}")
+
+
+def test_credit_note_type_code_default() -> None:
+    data = {**SAMPLE_CREDIT_NOTE}
+    del data["credit_note_type_code"]
+    root = _parse_cn(data)
+    type_code = _find(root, "cbc:CreditNoteTypeCode")
+    assert type_code is not None
+    assert type_code.text == "381"
+
+
+def test_credit_note_type_code_override() -> None:
+    data = {**SAMPLE_CREDIT_NOTE, "credit_note_type_code": "384"}
+    root = _parse_cn(data)
+    type_code = _find(root, "cbc:CreditNoteTypeCode")
+    assert type_code is not None
+    assert type_code.text == "384"
+
+
+def test_credit_note_lines_use_correct_wrapper() -> None:
+    root = _parse_cn(SAMPLE_CREDIT_NOTE)
+    # The line wrapper lives in the cac: namespace, not the default.
+    lines = root.findall(f"{{{CAC}}}CreditNoteLine")
+    assert len(lines) == 1
+    qty = lines[0].find(f"{{{CBC}}}CreditedQuantity")
+    assert qty is not None
+    assert qty.text == "2"
+    assert qty.get("unitCode") == "HUR"
+    # The invoice-specific element name MUST NOT leak into credit notes.
+    assert root.find(f".//{{{CAC}}}InvoiceLine") is None
+    assert root.find(f".//{{{CBC}}}InvoicedQuantity") is None
+
+
+def test_credit_note_header_shape() -> None:
+    root = _parse_cn(SAMPLE_CREDIT_NOTE)
+    for tag in [
+        "CustomizationID",
+        "ProfileID",
+        "ID",
+        "IssueDate",
+        "CreditNoteTypeCode",
+        "DocumentCurrencyCode",
+    ]:
+        assert _find(root, f"cbc:{tag}") is not None, f"Missing: {tag}"
+    # CreditNote schema does not have DueDate — must be absent even if the
+    # caller accidentally supplies it.
+    data = {**SAMPLE_CREDIT_NOTE, "due_date": "2025-03-01"}
+    root_with_due = _parse_cn(data)
+    assert _find(root_with_due, "cbc:DueDate") is None
+
+
+def test_credit_note_shared_subtrees_match_invoice() -> None:
+    # Serialise an invoice and a credit note from equivalent dicts, with
+    # billing_reference absent on BOTH so we isolate the shared subtrees
+    # (BillingReference is structurally valid on both document types, but
+    # comparing with it present would just complicate the diff).
+    invoice_data = {k: v for k, v in SAMPLE_INVOICE.items()}
+    cn_data = {k: v for k, v in SAMPLE_CREDIT_NOTE.items() if k not in ("credit_note_type_code", "billing_reference")}
+    # Give the credit note an invoice_type_code default so field naming
+    # differences don't introduce stray content — the generator only reads
+    # the key that matches its document type.
+    inv_root = ET.fromstring(generate_ubl(invoice_data))
+    cn_root = _parse_cn(cn_data)
+
+    def _canonical(el: ET.Element) -> bytes:
+        return ET.tostring(el, encoding="utf-8")  # type: ignore[no-any-return]
+
+    for tag in [
+        "AccountingSupplierParty",
+        "AccountingCustomerParty",
+        "TaxTotal",
+        "LegalMonetaryTotal",
+    ]:
+        inv_sub = inv_root.find(f"{{{CAC}}}{tag}")
+        cn_sub = cn_root.find(f"{{{CAC}}}{tag}")
+        assert inv_sub is not None and cn_sub is not None, tag
+        assert _canonical(inv_sub) == _canonical(cn_sub), f"Subtree {tag} differs between invoice and credit note"
+
+
+def test_credit_note_passes_credit_note_xsd() -> None:
+    from peppol_sender.validator import validate_xsd
+
+    rules = validate_xsd(generate_credit_note(SAMPLE_CREDIT_NOTE))
+    assert rules == []
+
+
+# --- BillingReference (BT-25/BT-26) ---
+
+
+def test_billing_reference_emitted_when_present() -> None:
+    root = _parse_cn(SAMPLE_CREDIT_NOTE)
+    idr = root.find(f"{{{CAC}}}BillingReference/{{{CAC}}}InvoiceDocumentReference")
+    assert idr is not None
+    assert idr.find(f"{{{CBC}}}ID").text == "INV-TEST-001"  # type: ignore[union-attr]
+    assert idr.find(f"{{{CBC}}}IssueDate").text == "2025-01-15"  # type: ignore[union-attr]
+
+
+def test_billing_reference_omitted_when_absent() -> None:
+    data = {k: v for k, v in SAMPLE_CREDIT_NOTE.items() if k != "billing_reference"}
+    root = _parse_cn(data)
+    assert root.find(f".//{{{CAC}}}BillingReference") is None
+    # And the same for invoices — byte-identity test already proves this, but
+    # covering it explicitly makes the regression surface in one obvious test.
+    inv_root = ET.fromstring(generate_ubl(SAMPLE_INVOICE))
+    assert inv_root.find(f".//{{{CAC}}}BillingReference") is None
+
+
+def test_billing_reference_on_invoice_also_supported() -> None:
+    # Corrective-invoice series use case: an Invoice can reference a
+    # preceding invoice. Helper is document-type agnostic.
+    data = {
+        **SAMPLE_INVOICE,
+        "billing_reference": {"id": "INV-PREV-99", "issue_date": "2024-12-31"},
+    }
+    root = ET.fromstring(generate_ubl(data))
+    idr = root.find(f"{{{CAC}}}BillingReference/{{{CAC}}}InvoiceDocumentReference")
+    assert idr is not None
+    assert idr.find(f"{{{CBC}}}ID").text == "INV-PREV-99"  # type: ignore[union-attr]
+    assert idr.find(f"{{{CBC}}}IssueDate").text == "2024-12-31"  # type: ignore[union-attr]
+
+
+def test_billing_reference_precedes_parties() -> None:
+    # UBL xs:sequence: BillingReference MUST come before AccountingSupplierParty.
+    root = _parse_cn(SAMPLE_CREDIT_NOTE)
+    tags = [c.tag.rsplit("}", 1)[-1] for c in root]
+    assert tags.index("BillingReference") < tags.index("AccountingSupplierParty")

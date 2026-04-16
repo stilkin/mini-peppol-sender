@@ -1,8 +1,8 @@
 """Peppyrus API client helpers.
 
-Provides functions to package a UBL invoice into the MessageBody JSON and
-send it to the Peppyrus `/message` endpoint. Uses `requests` to perform HTTP
-calls and expects `X-Api-Key` in headers.
+Provides functions to package a UBL invoice or credit note into the
+MessageBody JSON and send it to the Peppyrus `/message` endpoint. Uses
+`requests` to perform HTTP calls and expects `X-Api-Key` in headers.
 """
 
 import base64
@@ -11,6 +11,23 @@ from typing import Any
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+# PEPPOL BIS Billing 3.0 document-type identifiers. Callers pass these to
+# `package_message()` so the Peppyrus service knows which schema the payload
+# conforms to. Keep both constants here so CLI and webapp callers don't
+# duplicate the long literal.
+INVOICE_DOCUMENT_TYPE = (
+    "busdox-docid-qns::urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+    "::Invoice##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1"
+)
+CREDIT_NOTE_DOCUMENT_TYPE = (
+    "busdox-docid-qns::urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2"
+    "::CreditNote##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1"
+)
+
+# PEPPOL BIS Billing 3.0 process-type identifier. Shared by both document
+# types; exposed here as the single source of truth.
+PROCESS_TYPE = "cenbii-procid-ubl::urn:fdc:peppol.eu:2017:poacc:billing:01:1.0"
 
 
 def _session() -> requests.Session:

@@ -150,9 +150,34 @@ If `payment_means` is omitted entirely, no `cac:PaymentMeans` element is emitted
 and BR-50 does not fire — use this for invoices paid by other means (cash,
 direct debit) where structured bank details are not relevant.
 
+## Credit notes
+
+The same JSON schema also feeds `generate_credit_note()` and `cli.py create --type credit-note`. A credit note is structurally almost identical to an invoice under PEPPOL BIS Billing 3.0 — the same seller, buyer, payment_means, and lines fields apply unchanged. The differences:
+
+| Invoice field | Credit note equivalent |
+|---|---|
+| `invoice_type_code` (default `380`) | `credit_note_type_code` (default `381`, UN/CEFACT commercial credit note) |
+| `due_date` (optional) | **Not allowed** — UBL CreditNote-2.1 schema has no `DueDate` element. Payment timing for a credit note goes under `payment_means` if needed. |
+| Root element `<Invoice>` / line element `<cac:InvoiceLine>` / `<cbc:InvoicedQuantity>` | `<CreditNote>` / `<cac:CreditNoteLine>` / `<cbc:CreditedQuantity>` — handled automatically by `generate_credit_note()` |
+
+In addition, credit notes **strongly should** carry an optional top-level `billing_reference` block identifying the invoice being corrected:
+
+```json
+"billing_reference": {
+    "id": "INV-2025-001",
+    "issue_date": "2025-01-15"
+}
+```
+
+This becomes `cac:BillingReference/cac:InvoiceDocumentReference` in the UBL output (BT-25 / BT-26 on EN-16931). PEPPOL transmission does not strictly require it, but downstream accounting systems expect a credit note to name the document it corrects. The same field is also accepted on regular invoices for corrective-invoice series use cases; in both cases it is optional and omitted from the XML when absent.
+
+A full `sample_credit_note.json` can be derived from `sample_invoice.json` by removing `invoice_type_code` and `due_date`, adding `credit_note_type_code` and `billing_reference`, and changing `invoice_number` to a `CN-...` prefix.
+
 ## PDF rendering
 
 The same invoice JSON feeds the PDF renderer (`peppol_sender.pdf.render_pdf`) as well as the UBL generator. The CLI `create` subcommand and the webapp's `/api/validate`/`/api/send` routes embed the rendered PDF inside the UBL XML as a `cac:AdditionalDocumentReference` (PEPPOL BIS Billing 3.0 rule R008 "visual representation"). Pass `--no-pdf` to `cli.py create` for XML-only output. No new JSON fields are required — the PDF is derived entirely from the fields documented above.
+
+**Credit-note caveat**: the PDF template is not yet document-type aware and still renders the heading as "Invoice" even when called from `generate_credit_note(..., embed_pdf=True)`. If you need a correctly-labeled visual representation for a credit note, use `--no-pdf` and attach the visual out-of-band until a future change makes the template document-type aware.
 
 ## Notes
 

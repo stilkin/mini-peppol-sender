@@ -23,7 +23,7 @@ Base64-encodes UBL XML and wraps it in a MessageBody dict matching the Peppyrus 
 
 ### Requirement: CLI send subcommand
 
-The `send` subcommand validates, packages, and transmits a UBL document. It auto-detects the document type from the XML root element and selects the matching Peppyrus document type string — no `--type` flag is needed. Requires `PEPPYRUS_API_KEY` and `PEPPOL_SENDER_ID` environment variables.
+The `send` subcommand MUST validate, package, and transmit a UBL document. It MUST auto-detect the document type from the XML root element and select the matching Peppyrus document-type string — no `--type` flag is needed. It MUST require `PEPPYRUS_API_KEY` and `PEPPOL_SENDER_ID` environment variables.
 
 #### Scenario: Send an invoice
 
